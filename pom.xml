@@ -72,7 +72,6 @@
                 <groupId>org.jreleaser</groupId>
                 <artifactId>jreleaser-maven-plugin</artifactId>
                 <version>1.24.0</version>
-                <inherited>false</inherited>
                 <configuration>
                     <jreleaser>
                         <signing>
@@ -88,6 +87,7 @@
                                         <active>RELEASE</active>
                                         <url>https://central.sonatype.com/api/v1/publisher</url>
                                         <stagingRepositories>target/staging-deploy</stagingRepositories>
+                                        <releaseRepository>false</releaseRepository>
                                     </sonatype>
                                 </maven-central>
                             </maven>
