@@ -23,6 +23,9 @@
 
 package io.github.eckig.libavoid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,6 +43,8 @@ import java.util.Set;
  * to produce an optimal tree.
  */
 public class HyperedgeRerouter {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(HyperedgeRerouter.class);
 
     // C++: ConnEndListVector m_terminals_vector
     private final List<List<ConnEnd>> m_terminals_vector = new ArrayList<>();
@@ -225,8 +230,7 @@ public class HyperedgeRerouter {
                 boolean valid = findAttachedObjects(i, m_root_junction_vector.get(i), null,
                         allRegisteredHyperedgeConns);
                 if (!valid) {
-                    System.err.printf("Warning: Hyperedge %d registered with " +
-                            "HyperedgeRerouter is invalid and will be ignored.%n", i);
+                    LOGGER.error("Warning: Hyperedge {} registered with HyperedgeRerouter is invalid and will be ignored.", i);
                     // Hyperedge is invalid. Clear the terminals and other info
                     // so it will be ignored, and rerouted as a normal set of connectors.
                     m_terminals_vector.get(i).clear();

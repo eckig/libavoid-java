@@ -79,10 +79,6 @@ public class VertInf {
     private static int nextNodeId = 0;
     public final int nodeId;
 
-    // --- sptfRoot hack: C++ reinterprets m_treeRoot as a plain pointer ---
-    // We use a separate field instead.
-    private VertInf m_sptfRoot;
-
     public VertInf(Router router, VertID vid, Point vpoint) {
         this(router, vid, vpoint, true);
     }
@@ -110,7 +106,6 @@ public class VertInf {
         this.aStarDoneNodes = new ArrayList<>();
         this.aStarPendingNodes = new ArrayList<>();
         this.orthogVisPropFlags = 0;
-        this.m_sptfRoot = null;
 
         point.id = vid.objID;
         point.vn = vid.vn;
@@ -263,16 +258,6 @@ public class VertInf {
 
     public void setTreeRootPointer(VertInf[] pointer) {
         m_treeRoot = pointer;
-    }
-
-    // --- SPTF root support ---
-    // C++ reinterprets m_treeRoot as a plain VertInf*. We use a separate field.
-    public void setSPTFRoot(VertInf root) {
-        m_sptfRoot = root;
-    }
-
-    public VertInf sptfRoot() {
-        return m_sptfRoot;
     }
 
     @Override

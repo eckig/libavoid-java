@@ -23,6 +23,9 @@
 
 package io.github.eckig.libavoid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +34,8 @@ import java.util.List;
  * Corresponds to ConnEnd in connend.h/connend.cpp.
  */
 public class ConnEnd {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ConnEnd.class);
 
     ConnEndType m_type;
     Point m_point;
@@ -166,10 +171,6 @@ public class ConnEnd {
             return (JunctionRef) m_anchor_obj;
         }
         return null;
-    }
-
-    public int pinClassId() {
-        return m_connection_pin_class_id;
     }
 
     public boolean isPinConnection() {
@@ -371,9 +372,7 @@ public class ConnEnd {
         {
             // There should be at least one pin, otherwise we will have
             // problems finding connector routes.
-            System.err.printf("Warning: In ConnEnd::assignPinVisibilityTo():%n" +
-                    "         ConnEnd for connector %d can't connect to shape %d%n" +
-                    "         since it has no pins with class id of %d.%n",
+            LOGGER.error("Warning: In ConnEnd::assignPinVisibilityTo(): ConnEnd for connector {} can't connect to shape {} since it has no pins with class id of {}",
                     (m_conn_ref != null ? m_conn_ref.id() : -1),
                     m_anchor_obj.id(),
                     m_connection_pin_class_id);

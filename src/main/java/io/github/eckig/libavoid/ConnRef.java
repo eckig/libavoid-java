@@ -23,6 +23,9 @@
 
 package io.github.eckig.libavoid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +34,8 @@ import java.util.List;
  * Corresponds to connector.h/connector.cpp in C++.
  */
 public class ConnRef {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ConnRef.class);
 
     // -----------------------------------------------------------------------
     // Fields — match C++ ConnRef private members
@@ -658,7 +663,7 @@ public class ConnRef {
      */
     void set_route(Polygon route) {
         if (m_display_route == route) {
-            System.err.println("Error:\tTrying to update libavoid route with itself.");
+            LOGGER.error("Error: Trying to update libavoid route with itself.");
             return;
         }
         m_display_route.ps = new ArrayList<>(route.ps.size());
@@ -806,8 +811,7 @@ public class ConnRef {
      */
     void getConnEndForEndpointVertex(VertInf vertex, ConnEnd[] result, int idx) {
         if (vertex == null) {
-            System.err.printf("Warning: In ConnRef::getConnEndForEndpointVertex():%n" +
-                    "         ConnEnd for connector %d is uninitialised.%n", id());
+            LOGGER.error("Warning: In ConnRef::getConnEndForEndpointVertex(): ConnEnd for connector {} is uninitialised.", id());
             return;
         }
 
@@ -1051,8 +1055,8 @@ public class ConnRef {
 
                 assert path.size() >= 2;
             } else {
-                System.err.printf("Warning: skipping checkpoint for connector %d at (%g, %g).%n",
-                        id(), checkpoints.get(i).point.x, checkpoints.get(i).point.y);
+                LOGGER.error("Warning: skipping checkpoint for connector {} at ({}, {}).", id(),
+                        checkpoints.get(i).point.x, checkpoints.get(i).point.y);
             }
         }
         // Use topbit to differentiate between start and end point of connector.

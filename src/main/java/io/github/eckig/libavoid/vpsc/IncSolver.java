@@ -221,15 +221,4 @@ public class IncSolver {
         }
         return mv;
     }
-
-    @SuppressWarnings("unused")
-    private void printBlocks() {
-        // For debugging
-        for (int i = 0; i < bs.size(); i++) {
-            System.err.println("  " + bs.at(i));
-        }
-        for (Constraint c : cs) {
-            System.err.println("  " + c);
-        }
-    }
 }

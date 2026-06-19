@@ -334,7 +334,6 @@ class MinimumTerminalSpanningTree {
                     edgeList.add(new Pair<>(edge, partner));
                 }
             } else {
-                System.out.println("Warning, nonorthogonal edge.");
                 edgeList.add(new Pair<>(edge, other));
             }
         }

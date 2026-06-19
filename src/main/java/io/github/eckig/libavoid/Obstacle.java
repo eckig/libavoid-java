@@ -44,7 +44,6 @@ public abstract class Obstacle {
     protected Router m_router;
     protected int m_id;
     protected Polygon m_polygon;
-    protected boolean m_active;
     protected VertInf m_first_vert;
     protected VertInf m_last_vert;
     Set<ShapeConnectionPin> m_connection_pins;
@@ -61,7 +60,6 @@ public abstract class Obstacle {
         m_id = (id != 0) ? id : router.assignId();
         m_polygon = new Polygon(poly);
         m_polygon._id = m_id;
-        m_active = false;
         m_first_vert = null;
         m_last_vert = null;
         m_connection_pins = new TreeSet<>();
@@ -186,7 +184,6 @@ public abstract class Obstacle {
      * Corresponds to Obstacle::makeActive() in C++.
      */
     public void makeActive() {
-        assert !m_active;
 
         // Add to router's obstacle list.
         if (!m_router.m_obstacles.contains(this)) {
@@ -201,7 +198,6 @@ public abstract class Obstacle {
             m_router.vertices.addVertex(tmp);
         } while (it != m_first_vert);
 
-        m_active = true;
     }
 
     /**
@@ -210,7 +206,6 @@ public abstract class Obstacle {
      * Corresponds to Obstacle::makeInactive() in C++.
      */
     public void makeInactive() {
-        assert m_active;
 
         // Remove from router's obstacle list.
         m_router.m_obstacles.remove(this);
@@ -223,7 +218,6 @@ public abstract class Obstacle {
             m_router.vertices.removeVertex(tmp);
         } while (it != m_first_vert);
 
-        m_active = false;
 
         // Turn attached ConnEnds into manual points.
         // C++ obstacle.cpp:176-182
@@ -232,10 +226,6 @@ public abstract class Obstacle {
             ConnEnd connEnd = m_following_conn_ends.iterator().next();
             connEnd.disconnect(deletedShape);
         }
-    }
-
-    public boolean isActive() {
-        return m_active;
     }
 
     /**

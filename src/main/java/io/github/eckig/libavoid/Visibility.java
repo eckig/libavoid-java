@@ -257,7 +257,6 @@ public class Visibility {
     static void vertexSweep(VertInf vert) {
         Router router = vert._router;
 
-        VertInf centerInf = vert;
         VertID centerID = vert.id;
         Point centerPoint = vert.point;
 
@@ -271,7 +270,7 @@ public class Visibility {
         VertInf beginVert = router.vertices.connsBegin();
         VertInf endVert = router.vertices.end();
         for (VertInf inf = beginVert; inf != endVert; inf = inf.lstNext) {
-            if (inf == centerInf) {
+            if (inf == vert) {
                 // Don't include the center point itself.
                 continue;
             } else if (inf.id.equals(VertInf.dummyOrthogID)) {
@@ -311,29 +310,29 @@ public class Visibility {
 
         // Add edges to T that intersect the initial ray.
         List<EdgePair> e = new ArrayList<>();
-        Point xaxis = new Point(Double.MAX_VALUE, centerInf.point.y);
+        Point xaxis = new Point(Double.MAX_VALUE, vert.point.y);
         for (PointPair t : v) {
             VertInf k = t.vInf;
 
             VertInf kPrev = k.shPrev;
             VertInf kNext = k.shNext;
-            if (kPrev != null && kPrev != centerInf &&
-                    (Geometry.vecDir(centerInf.point, xaxis, kPrev.point) == AHEAD)) {
-                if (Geometry.segmentIntersect(centerInf.point, xaxis, kPrev.point, k.point)) {
+            if (kPrev != null && kPrev != vert &&
+                    (Geometry.vecDir(vert.point, xaxis, kPrev.point) == AHEAD)) {
+                if (Geometry.segmentIntersect(vert.point, xaxis, kPrev.point, k.point)) {
                     EdgePair intPair = new EdgePair(t, kPrev);
                     e.add(intPair);
                 }
-                if (Geometry.pointOnLine(kPrev.point, k.point, centerInf.point)) {
+                if (Geometry.pointOnLine(kPrev.point, k.point, vert.point)) {
                     // Record that centerPoint is on an obstacle line.
                     onBorderIDs.add(k.id.objID);
                 }
-            } else if (kNext != null && kNext != centerInf &&
-                    (Geometry.vecDir(centerInf.point, xaxis, kNext.point) == AHEAD)) {
-                if (Geometry.segmentIntersect(centerInf.point, xaxis, kNext.point, k.point)) {
+            } else if (kNext != null && kNext != vert &&
+                    (Geometry.vecDir(vert.point, xaxis, kNext.point) == AHEAD)) {
+                if (Geometry.segmentIntersect(vert.point, xaxis, kNext.point, k.point)) {
                     EdgePair intPair = new EdgePair(t, kNext);
                     e.add(intPair);
                 }
-                if (Geometry.pointOnLine(kNext.point, k.point, centerInf.point)) {
+                if (Geometry.pointOnLine(kNext.point, k.point, vert.point)) {
                     // Record that centerPoint is on an obstacle line.
                     onBorderIDs.add(k.id.objID);
                 }
@@ -351,9 +350,9 @@ public class Visibility {
 
             double currDist = t.distance;
 
-            EdgeInf edge = EdgeInf.existingEdge(centerInf, currInf);
+            EdgeInf edge = EdgeInf.existingEdge(vert, currInf);
             if (edge == null) {
-                edge = new EdgeInf(centerInf, currInf);
+                edge = new EdgeInf(vert, currInf);
             }
 
             for (EdgePair c : e) {
@@ -373,8 +372,8 @@ public class Visibility {
             boolean cone1 = true, cone2 = true;
             if (!centerID.isConnPt()) {
                 cone1 = Geometry.inValidRegion(router.IgnoreRegions,
-                        centerInf.shPrev.point, centerPoint,
-                        centerInf.shNext.point, currInf.point);
+                        vert.shPrev.point, centerPoint,
+                        vert.shNext.point, currInf.point);
             }
             if (!currInf.id.isConnPt()) {
                 cone2 = Geometry.inValidRegion(router.IgnoreRegions,
@@ -394,16 +393,10 @@ public class Visibility {
                 }
             }
 
-            if (!edge.added() && !router.InvisibilityGrph) {
-                // Don't keep the edge if it wasn't added and we're not using
-                // the invisibility graph.
-                edge = null;
-            }
-
             if (!currID.isConnPt()) {
                 // This is a shape edge
 
-                if (currInf.shPrev != centerInf) {
+                if (currInf.shPrev != vert) {
                     Point prevPt = currInf.shPrev.point;
                     int prevDir = Geometry.vecDir(centerPoint, currPt, prevPt);
                     EdgePair prevPair = new EdgePair(t, currInf.shPrev);
@@ -415,7 +408,7 @@ public class Visibility {
                     }
                 }
 
-                if (currInf.shNext != centerInf) {
+                if (currInf.shNext != vert) {
                     Point nextPt = currInf.shNext.point;
                     int nextDir = Geometry.vecDir(centerPoint, currPt, nextPt);
                     EdgePair nextPair = new EdgePair(t, currInf.shNext);

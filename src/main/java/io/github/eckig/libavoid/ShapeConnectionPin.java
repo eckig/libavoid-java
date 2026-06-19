@@ -237,7 +237,7 @@ public class ShapeConnectionPin implements Comparable<ShapeConnectionPin> {
      */
     public Point position(Polygon poly) {
         if (m_shape instanceof JunctionRef) {
-            return ((JunctionRef) m_shape).position();
+            return m_shape.position();
         }
 
         if (poly == null || poly.empty()) {
