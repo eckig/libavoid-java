@@ -43,15 +43,10 @@ public class Polygon extends AbstractPolygon {
      *  a move-to operation or a Bezier curve-to. */
     public List<Character> ts;
 
-    /** If used, denotes checkpoints through which the route travels
-     *  and the relevant segment of the route. */
-    public List<Pair<Integer, Point>> checkpointsOnRoute;
-
     public Polygon() {
         _id = 0;
         ps = new ArrayList<>();
         ts = new ArrayList<>();
-        checkpointsOnRoute = new ArrayList<>();
     }
 
     public Polygon(int n) {
@@ -61,7 +56,6 @@ public class Polygon extends AbstractPolygon {
             ps.add(new Point());
         }
         ts = new ArrayList<>();
-        checkpointsOnRoute = new ArrayList<>();
     }
 
     public Polygon(AbstractPolygon poly) {
@@ -71,7 +65,6 @@ public class Polygon extends AbstractPolygon {
             ps.add(new Point(poly.at(i)));
         }
         ts = new ArrayList<>();
-        checkpointsOnRoute = new ArrayList<>();
     }
 
     /** Copy constructor for Polygon specifically. */
@@ -82,17 +75,12 @@ public class Polygon extends AbstractPolygon {
             ps.add(new Point(p));
         }
         ts = new ArrayList<>(other.ts);
-        checkpointsOnRoute = new ArrayList<>();
-        for (var entry : other.checkpointsOnRoute) {
-            checkpointsOnRoute.add(new Pair<>(entry.first, new Point(entry.second)));
-        }
     }
 
     @Override
     public void clear() {
         ps.clear();
         ts.clear();
-        checkpointsOnRoute.clear();
     }
 
     @Override
@@ -122,55 +110,17 @@ public class Polygon extends AbstractPolygon {
     public Polygon simplify() {
         Polygon simplified = new Polygon(this);
 
-        var checkpoints = simplified.checkpointsOnRoute;
-        boolean hasCheckpointInfo = !checkpoints.isEmpty();
-
         int j = 2;
         while (j < simplified.size()) {
             if (Geometry.vecDir(simplified.ps.get(j - 2), simplified.ps.get(j - 1),
                     simplified.ps.get(j)) == 0) {
                 simplified.ps.remove(j - 1);
-
-                if (hasCheckpointInfo) {
-                    int deletedPointValue = (j - 1) - 1;
-                    for (int i = 0; i < checkpoints.size(); ++i) {
-                        var cp = checkpoints.get(i);
-                        if (cp.first == deletedPointValue) {
-                            checkpoints.set(i, new Pair<>(cp.first - 1, cp.second));
-                        } else if (cp.first > deletedPointValue) {
-                            checkpoints.set(i, new Pair<>(cp.first - 2, cp.second));
-                        }
-                    }
-                }
             } else {
                 ++j;
             }
         }
 
         return simplified;
-    }
-
-    public List<Point> checkpointsOnSegment(int segmentLowerIndex, int indexModifier) {
-        List<Point> checkpoints = new ArrayList<>();
-        int checkpointLowerValue = 2 * segmentLowerIndex;
-        int checkpointUpperValue = checkpointLowerValue + 2;
-
-        if (indexModifier > 0) {
-            checkpointLowerValue++;
-        } else if (indexModifier < 0) {
-            checkpointUpperValue--;
-        }
-
-        for (var entry : checkpointsOnRoute) {
-            if (entry.first >= checkpointLowerValue && entry.first <= checkpointUpperValue) {
-                checkpoints.add(entry.second);
-            }
-        }
-        return checkpoints;
-    }
-
-    public List<Point> checkpointsOnSegment(int segmentLowerIndex) {
-        return checkpointsOnSegment(segmentLowerIndex, 0);
     }
 
     public void translate(double xDist, double yDist) {

@@ -24,19 +24,12 @@
 package io.github.eckig.libavoid.scanline;
 
 import io.github.eckig.libavoid.Box;
-import io.github.eckig.libavoid.Checkpoint;
-import io.github.eckig.libavoid.ConnRef;
-import io.github.eckig.libavoid.ConnType;
-import io.github.eckig.libavoid.Geometry;
 import io.github.eckig.libavoid.JunctionRef;
 import io.github.eckig.libavoid.Obstacle;
-import io.github.eckig.libavoid.Pair;
 import io.github.eckig.libavoid.Point;
-import io.github.eckig.libavoid.Polygon;
 import io.github.eckig.libavoid.Router;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
@@ -62,62 +55,6 @@ public final class Scanline {
             return ea.type.ordinal() - eb.type.ordinal();
         }
         return Integer.compare(ea.v.nodeId, eb.v.nodeId);
-    }
-
-    /**
-     * Build connector route checkpoint cache.
-     * C++: void buildConnectorRouteCheckpointCache(Router *router)
-     */
-    public static void buildConnectorRouteCheckpointCache(Router router) {
-        for (ConnRef conn : router.m_connectors) {
-            if (conn.routingType() != ConnType.Orthogonal) {
-                continue;
-            }
-
-            Polygon displayRoute = conn.displayRoute();
-            List<Checkpoint> checkpoints = conn.routingCheckpoints();
-            if (checkpoints == null) checkpoints = Collections.emptyList();
-
-            // Initialise checkpoint list
-            displayRoute.checkpointsOnRoute = new ArrayList<>();
-
-            for (int ind = 0; ind < displayRoute.size(); ++ind) {
-                if (ind > 0) {
-                    for (Checkpoint checkpoint : checkpoints) {
-                        if (Geometry.pointOnLine(displayRoute.ps.get(ind - 1),
-                            displayRoute.ps.get(ind), checkpoint.point)) {
-                            // The checkpoint is on a segment.
-                            displayRoute.checkpointsOnRoute.add(
-                                new Pair<>((ind * 2) - 1, checkpoint.point));
-                        }
-                    }
-                }
-
-                for (Checkpoint checkpoint : checkpoints) {
-                    if (displayRoute.ps.get(ind).equals(checkpoint.point, 0.0001)) {
-                        // The checkpoint is at a bendpoint.
-                        displayRoute.checkpointsOnRoute.add(
-                            new Pair<>(ind * 2, checkpoint.point));
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Clear connector route checkpoint cache.
-     * C++: void clearConnectorRouteCheckpointCache(Router *router)
-     */
-    public static void clearConnectorRouteCheckpointCache(Router router) {
-        for (ConnRef conn : router.m_connectors) {
-            if (conn.routingType() != ConnType.Orthogonal) {
-                continue;
-            }
-            Polygon displayRoute = conn.displayRoute();
-            if (displayRoute.checkpointsOnRoute != null) {
-                displayRoute.checkpointsOnRoute.clear();
-            }
-        }
     }
 
     /**

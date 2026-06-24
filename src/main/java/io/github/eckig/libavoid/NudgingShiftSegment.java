@@ -42,7 +42,6 @@ public class NudgingShiftSegment extends ShiftSegment {
     public boolean finalSegment;
     public boolean endsInShape;
     public boolean singleConnectedSegment;
-    public List<Point> checkpoints;
     private final boolean sBend;
     private final boolean zBend;
 
@@ -63,7 +62,6 @@ public class NudgingShiftSegment extends ShiftSegment {
         this.sBend = isSBend;
         this.zBend = isZBend;
         this.indexes = new ArrayList<>();
-        this.checkpoints = new ArrayList<>();
         indexes.add(low);
         indexes.add(high);
         this.minSpaceLimit = minLim;
@@ -85,7 +83,6 @@ public class NudgingShiftSegment extends ShiftSegment {
         this.sBend = false;
         this.zBend = false;
         this.indexes = new ArrayList<>();
-        this.checkpoints = new ArrayList<>();
         indexes.add(low);
         indexes.add(high);
         // This has no space to shift.
@@ -127,8 +124,6 @@ public class NudgingShiftSegment extends ShiftSegment {
             if (singleConnectedSegment && !justUnifying) {
                 weight = Variable.Weight.strongerWeight;
             }
-        } else if (!checkpoints.isEmpty()) {
-            weight = Variable.Weight.strongWeight;
         } else if (zigzag()) {
             // For zigzag bends, take the middle as ideal.
             varPos = minSpaceLimit + ((maxSpaceLimit - minSpaceLimit) / 2);
@@ -243,11 +238,6 @@ public class NudgingShiftSegment extends ShiftSegment {
         if (connRef != rhs.connRef) {
             return false;
         }
-        boolean hasCheckpoints = !checkpoints.isEmpty();
-        boolean rhsHasCheckpoints = !rhs.checkpoints.isEmpty();
-        if (hasCheckpoints || rhsHasCheckpoints) {
-            return false;
-        }
         return true;
     }
 
@@ -262,27 +252,6 @@ public class NudgingShiftSegment extends ShiftSegment {
             if ((endsInShape && rhs.endsInShape) ||
                     (Math.abs(lowPoint().get(dim) - rhs.lowPoint().get(dim)) < 10)) {
                 return true;
-            }
-        } else if ((connRef == rhs.connRef) &&
-                   !((finalSegment) && (rhs.finalSegment))) {
-            boolean hasCheckpoints = !checkpoints.isEmpty();
-            boolean rhsHasCheckpoints = !rhs.checkpoints.isEmpty();
-
-            if (hasCheckpoints != rhsHasCheckpoints) {
-                int altDim = (dim + 1) % 2;
-                double space = Math.abs(lowPoint().get(dim) - rhs.lowPoint().get(dim));
-                double touchPos = 0;
-                boolean couldTouch = false;
-                if (lowPoint().get(altDim) == rhs.highPoint().get(altDim)) {
-                    couldTouch = true;
-                    touchPos = lowPoint().get(altDim);
-                } else if (highPoint().get(altDim) == rhs.lowPoint().get(altDim)) {
-                    couldTouch = true;
-                    touchPos = highPoint().get(altDim);
-                }
-                return couldTouch && (space <= 10) &&
-                        !hasCheckpointAtPosition(touchPos, altDim) &&
-                        !rhs.hasCheckpointAtPosition(touchPos, altDim);
             }
         }
         return false;
@@ -324,15 +293,6 @@ public class NudgingShiftSegment extends ShiftSegment {
             int index = indexes.get(it);
             connRef.displayRoute().ps.get(index).set(dimension, segmentPos);
         }
-    }
-
-    public boolean hasCheckpointAtPosition(double position, int dim) {
-        for (int cp = 0; cp < checkpoints.size(); ++cp) {
-            if (checkpoints.get(cp).get(dim) == position) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean lowC() {

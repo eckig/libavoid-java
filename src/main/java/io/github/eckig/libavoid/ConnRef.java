@@ -64,7 +64,6 @@ public class ConnRef {
     Object m_connector;
     ConnEnd m_src_connend;
     ConnEnd m_dst_connend;
-    List<Checkpoint> m_checkpoints;
     List<VertInf> m_checkpoint_vertices;
 
     // -----------------------------------------------------------------------
@@ -93,7 +92,6 @@ public class ConnRef {
         m_connector = null;
         m_src_connend = null;
         m_dst_connend = null;
-        m_checkpoints = new ArrayList<>();
         m_checkpoint_vertices = new ArrayList<>();
 
         m_id = m_router.assignId(id);
@@ -131,7 +129,6 @@ public class ConnRef {
         m_connector = null;
         m_src_connend = null;
         m_dst_connend = null;
-        m_checkpoints = new ArrayList<>();
         m_checkpoint_vertices = new ArrayList<>();
 
         m_id = m_router.assignId(id);
@@ -248,42 +245,6 @@ public class ConnRef {
             m_type = type;
             makePathInvalid();
             m_router.modifyConnector(this);
-        }
-    }
-
-    /**
-     * Returns the current routing checkpoints.
-     * Corresponds to ConnRef::routingCheckpoints().
-     */
-    public List<Checkpoint> routingCheckpoints() {
-        return m_checkpoints;
-    }
-
-    /**
-     * Sets routing checkpoints for this connector.
-     * Corresponds to ConnRef::setRoutingCheckpoints(vector<Checkpoint>).
-     */
-    public void setRoutingCheckpoints(List<Checkpoint> checkpoints) {
-        m_checkpoints = new ArrayList<>(checkpoints);
-
-        // Clear previous checkpoint vertices.
-        for (VertInf v : m_checkpoint_vertices) {
-            v.removeFromGraph(true);
-            m_router.vertices.removeVertex(v);
-        }
-        m_checkpoint_vertices.clear();
-
-        for (int i = 0; i < m_checkpoints.size(); ++i) {
-            VertID ptID = new VertID(m_id, (short)(2 + i),
-                    (short)(VertID.PROP_ConnPoint | VertID.PROP_ConnCheckpoint));
-            VertInf vertex = new VertInf(m_router, ptID, m_checkpoints.get(i).point);
-            vertex.visDirections = ConnDirFlag.ConnDirAll;
-            m_checkpoint_vertices.add(vertex);
-        }
-        if (m_router.m_allows_polyline_routing) {
-            for (int i = 0; i < m_checkpoints.size(); ++i) {
-                Visibility.vertexVisibility(m_checkpoint_vertices.get(i), null, true, true);
-            }
         }
     }
 
@@ -923,11 +884,7 @@ public class ConnRef {
 
         List<Point> path = new ArrayList<>();
         List<VertInf> vertices = new ArrayList<>();
-        if (m_checkpoints.isEmpty()) {
-            generateStandardPath(path, vertices);
-        } else {
-            generateCheckpointsPath(path, vertices);
-        }
+        generateStandardPath(path, vertices);
 
         assert vertices.size() >= 2;
         assert vertices.getFirst() == src();
@@ -976,95 +933,6 @@ public class ConnRef {
         m_route.ps = new ArrayList<>(clippedPath);
 
         return true;
-    }
-
-    /**
-     * Generates a path through checkpoints.
-     * Corresponds to ConnRef::generateCheckpointsPath(vector<Point>&, vector<VertInf*>&).
-     */
-    private void generateCheckpointsPath(List<Point> path, List<VertInf> vertices) {
-        List<VertInf> checkpoints = new ArrayList<>(m_checkpoint_vertices);
-        checkpoints.addFirst(src());
-        checkpoints.add(dst());
-
-        path.clear();
-        vertices.clear();
-        path.add(src().point);
-        vertices.add(src());
-
-        int lastSuccessfulIndex = 0;
-        for (int i = 1; i < checkpoints.size(); ++i) {
-            VertInf start = checkpoints.get(lastSuccessfulIndex);
-            VertInf end = checkpoints.get(i);
-
-            // Handle checkpoint directions by disabling some visibility edges.
-            if (lastSuccessfulIndex > 0) {
-                Checkpoint srcCP = m_checkpoints.get(lastSuccessfulIndex - 1);
-                if (srcCP.departureDirections != ConnDirFlag.ConnDirAll) {
-                    start.setVisibleDirections(srcCP.departureDirections);
-                }
-            }
-            if ((i + 1) < checkpoints.size()) {
-                Checkpoint dstCP = m_checkpoints.get(i - 1);
-                if (dstCP.arrivalDirections != ConnDirFlag.ConnDirAll) {
-                    end.setVisibleDirections(dstCP.arrivalDirections);
-                }
-            }
-
-            MakePath.search(this, start, end, null);
-
-            // Restore changes made for checkpoint visibility directions.
-            if (lastSuccessfulIndex > 0) {
-                start.setVisibleDirections(ConnDirFlag.ConnDirAll);
-            }
-            if ((i + 1) < checkpoints.size()) {
-                end.setVisibleDirections(ConnDirFlag.ConnDirAll);
-            }
-
-            // Process the path.
-            int pathlen = end.pathLeadsBackTo(start);
-            if (pathlen >= 2) {
-                int prev_path_size = path.size();
-                // Extend path and vertices by (pathlen - 1) entries
-                for (int k = 0; k < pathlen - 1; k++) {
-                    path.add(null);
-                    vertices.add(null);
-                }
-                VertInf vertInf = end;
-                for (int index = path.size() - 1; index >= prev_path_size; --index) {
-                    Point pt = new Point(vertInf.point);
-                    if (vertInf.id.isConnPt()) {
-                        pt.id = m_id;
-                        pt.vn = Point.kUnassignedVertexNumber;
-                    } else {
-                        pt.id = vertInf.id.objID;
-                        pt.vn = vertInf.id.vn;
-                    }
-                    path.set(index, pt);
-                    vertices.set(index, vertInf);
-                    vertInf = vertInf.pathNext;
-                }
-                lastSuccessfulIndex = i;
-            } else if (i + 1 == checkpoints.size()) {
-                // There is no valid path.
-                // C++ uses db_printf here, which is suppressed in normal builds.
-                m_needs_reroute_flag = true;
-
-                path.add(dst().point);
-                vertices.add(dst());
-
-                assert path.size() >= 2;
-            } else {
-                LOGGER.error("Warning: skipping checkpoint for connector {} at ({}, {}).", id(),
-                        checkpoints.get(i).point.x, checkpoints.get(i).point.y);
-            }
-        }
-        // Use topbit to differentiate between start and end point of connector.
-        // They need unique IDs for nudging.
-        int topbit = 1 << 31;
-        Point lastPt = path.getLast();
-        lastPt.id = m_id | topbit;
-        lastPt.vn = Point.kUnassignedVertexNumber;
     }
 
     /**

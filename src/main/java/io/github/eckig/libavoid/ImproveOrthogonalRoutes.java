@@ -66,9 +66,6 @@ public class ImproveOrthogonalRoutes {
 
         // Simplify routes.
         simplifyOrthogonalRoutes();
-        // Build a cache that denotes whether a certain segment of a connector
-        // contains a checkpoint.
-        Scanline.buildConnectorRouteCheckpointCache(m_router);
 
         // Do Unifying first, by itself.
         if (m_router.routingOption(Router.RoutingOption.performUnifyingNudgingPreprocessingStep) &&
@@ -97,9 +94,6 @@ public class ImproveOrthogonalRoutes {
 
         // Resimplify all the display routes that may have been split.
         simplifyOrthogonalRoutes();
-
-        // Clear the segment-checkpoint cache for connectors.
-        Scanline.clearConnectorRouteCheckpointCache(m_router);
     }
 
     // =========================================================================
@@ -258,16 +252,6 @@ public class ImproveOrthogonalRoutes {
                         indexHigh = i - 1;
                     }
 
-                    List<Point> checkpoints = displayRoute.checkpointsOnSegment(i - 1);
-                    List<Point> prevCheckpoints = displayRoute.checkpointsOnSegment(i - 2, -1);
-                    List<Point> nextCheckpoints = displayRoute.checkpointsOnSegment(i, +1);
-                    boolean hasCheckpoints = (!checkpoints.isEmpty());
-
-                    if (hasCheckpoints && !nudgeFinalSegments) {
-                        segmentList.add(new NudgingShiftSegment(conn, indexLow, indexHigh, dim));
-                        continue;
-                    }
-
                     double thisPos = displayRoute.ps.get(i).get(dim);
 
                     if ((i == 1) || ((i + 1) == displayRoute.size())) {
@@ -326,45 +310,27 @@ public class ImproveOrthogonalRoutes {
                     double minLim = -CHANNEL_MAX;
                     double maxLim = CHANNEL_MAX;
 
-                    for (Point nextCheckpoint : nextCheckpoints) {
-                        if (nextCheckpoint.get(dim) < thisPos) {
-                            minLim = Math.max(minLim, nextCheckpoint.get(dim));
-                        } else if (nextCheckpoint.get(dim) > thisPos) {
-                            maxLim = Math.min(maxLim, nextCheckpoint.get(dim));
-                        }
-                    }
-                    for (Point prevCheckpoint : prevCheckpoints) {
-                        if (prevCheckpoint.get(dim) < thisPos) {
-                            minLim = Math.max(minLim, prevCheckpoint.get(dim));
-                        } else if (prevCheckpoint.get(dim) > thisPos) {
-                            maxLim = Math.min(maxLim, prevCheckpoint.get(dim));
-                        }
-                    }
-
                     boolean isSBend = false;
                     boolean isZBend = false;
 
-                    if (checkpoints.isEmpty()) {
-                        double prevPos = displayRoute.ps.get(i - 2).get(dim);
-                        double nextPos = displayRoute.ps.get(i + 1).get(dim);
-                        if (((prevPos < thisPos) && (nextPos > thisPos)) ||
-                                ((prevPos > thisPos) && (nextPos < thisPos))) {
-                            if (prevPos < thisPos) {
-                                minLim = Math.max(minLim, prevPos);
-                                maxLim = Math.min(maxLim, nextPos);
-                                isZBend = true;
-                            } else {
-                                minLim = Math.max(minLim, nextPos);
-                                maxLim = Math.min(maxLim, prevPos);
-                                isSBend = true;
-                            }
+                    double prevPos = displayRoute.ps.get(i - 2).get(dim);
+                    double nextPos = displayRoute.ps.get(i + 1).get(dim);
+                    if (((prevPos < thisPos) && (nextPos > thisPos)) ||
+                            ((prevPos > thisPos) && (nextPos < thisPos))) {
+                        if (prevPos < thisPos) {
+                            minLim = Math.max(minLim, prevPos);
+                            maxLim = Math.min(maxLim, nextPos);
+                            isZBend = true;
+                        } else {
+                            minLim = Math.max(minLim, nextPos);
+                            maxLim = Math.min(maxLim, prevPos);
+                            isSBend = true;
                         }
                     }
 
                     NudgingShiftSegment nss = new NudgingShiftSegment(conn,
                             indexLow, indexHigh, isSBend, isZBend, dim,
                             minLim, maxLim);
-                    nss.checkpoints = checkpoints;
                     segmentList.add(nss);
                 }
             }
