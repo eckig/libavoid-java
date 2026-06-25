@@ -346,6 +346,8 @@ public class ImproveOrthogonalRoutes {
                 Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes);
         boolean nudgeSharedPathsWithCommonEnd = m_router.routingOption(
                 Router.RoutingOption.nudgeSharedPathsWithCommonEndPoint);
+        boolean nudgeFinalSegmentsFromSamePoint = m_router.routingOption(
+                Router.RoutingOption.nudgeFinalSegmentsFromSamePoint);
         double baseSepDist = m_router.routingParameter(Router.RoutingParameter.idealNudgingDistance);
         assert baseSepDist >= 0;
         double reductionSteps = 10.0;
@@ -437,6 +439,12 @@ public class ImproveOrthogonalRoutes {
                         } else if (!nudgeSharedPathsWithCommonEnd &&
                                 (m_shared_path_connectors_with_common_endpoints.contains(
                                         new UnsignedPair(currSeg.connRef.id(), prevSeg.connRef.id())))) {
+                            thisSepDist = 0;
+                            equality = true;
+                        } else if (!nudgeFinalSegmentsFromSamePoint &&
+                                currSeg.connRef != prevSeg.connRef &&
+                                sharesFinalEndpoint(currSeg, prevSeg) &&
+                                segmentsSharePath(currSeg, prevSeg, dimension)) {
                             thisSepDist = 0;
                             equality = true;
                         }
@@ -694,6 +702,57 @@ public class ImproveOrthogonalRoutes {
             return lhsLow.get(altDim) < rhsLow.get(altDim);
         }
         return lhsPos < rhsPos;
+    }
+
+    // =========================================================================
+    // segmentsSharePath - checks if two segments are on a shared path section
+    // =========================================================================
+
+    /**
+     * Returns true if the two segments from different connectors lie on the same
+     * shared path section — i.e. the connectors have not yet diverged at this point.
+     *
+     * Two segments share a path if they are at the same position in the nudging
+     * dimension AND their alt-dimension ranges overlap (which is already guaranteed
+     * by overlapsWith, but we double-check here for the common-endpoint case).
+     *
+     * The key insight: if two connectors share a start point and their current
+     * segments are at the same position (before nudging), they are on a shared
+     * path and should be kept together.
+     */
+    private static boolean segmentsSharePath(NudgingShiftSegment seg1,
+            NudgingShiftSegment seg2, int dimension) {
+        // They share a path if they are currently at the same position in the
+        // nudging dimension (i.e. they haven't been nudged apart yet and are
+        // actually collinear).
+        double pos1 = seg1.lowPoint().get(dimension);
+        double pos2 = seg2.lowPoint().get(dimension);
+        return pos1 == pos2;
+    }
+
+    // =========================================================================
+    // sharesFinalEndpoint - checks if two final segments share a connector endpoint
+    // =========================================================================
+
+    /**
+     * Returns true if the two final segments belong to connectors that share
+     * the exact same start or end point (i.e. they leave from or arrive at
+     * the same coordinate).
+     */
+    private static boolean sharesFinalEndpoint(NudgingShiftSegment seg1,
+            NudgingShiftSegment seg2) {
+        Polygon route1 = seg1.connRef.displayRoute();
+        Polygon route2 = seg2.connRef.displayRoute();
+        if (route1.size() < 2 || route2.size() < 2) {
+            return false;
+        }
+        Point src1 = route1.ps.getFirst();
+        Point dst1 = route1.ps.getLast();
+        Point src2 = route2.ps.getFirst();
+        Point dst2 = route2.ps.getLast();
+
+        return src1.equals(src2) || src1.equals(dst2) ||
+               dst1.equals(src2) || dst1.equals(dst2);
     }
 
     // =========================================================================
