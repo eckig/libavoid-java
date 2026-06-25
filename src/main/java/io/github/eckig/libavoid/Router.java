@@ -201,7 +201,16 @@ public class Router {
          *
          * <p>Defaults to true.
          */
-        nudgeSharedPathsWithCommonEndPoint
+        nudgeSharedPathsWithCommonEndPoint,
+        /**
+         * This option determines whether the first/last (final) segments of connectors that share the exact same
+         * start or end point will be nudged apart. When set to false, connectors leaving from the same point will
+         * not be spread apart by nudging at their common endpoint, but may still diverge once they take different
+         * paths.
+         *
+         * <p>Defaults to true.
+         */
+        nudgeFinalSegmentsFromSamePoint
     }
 
     // -----------------------------------------------------------------------
@@ -541,6 +550,7 @@ public class Router {
         m_routing_options[RoutingOption.nudgeOrthogonalTouchingColinearSegments.ordinal()] = false;
         m_routing_options[RoutingOption.performUnifyingNudgingPreprocessingStep.ordinal()] = true;
         m_routing_options[RoutingOption.nudgeSharedPathsWithCommonEndPoint.ordinal()] = true;
+        m_routing_options[RoutingOption.nudgeFinalSegmentsFromSamePoint.ordinal()] = true;
 
         m_conn_reroute_flags = new ConnRerouteFlagDelegate();
 
