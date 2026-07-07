@@ -72,6 +72,13 @@ public class VertInf {
     // A* node lists — used by makepath
     public List<ANode> aStarDoneNodes;
     public List<ANode> aStarPendingNodes;
+    // Lazy-deletion support for A* (MakePath.search):
+    // aStarSettledTimestamp tracks the timestamp of the last settled node for
+    // this vertex; any node popped from the heap with a lower timestamp is stale.
+    // aStarVisited is used to build the dirty-vertex list for O(visited) cleanup
+    // instead of O(all-vertices) cleanup at the end of each A* run.
+    public int aStarSettledTimestamp;
+    public boolean aStarVisited;
     // Flags for orthogonal visibility properties
     public int orthogVisPropFlags;
 

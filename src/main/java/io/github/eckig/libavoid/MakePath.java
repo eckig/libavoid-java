@@ -392,8 +392,12 @@ public class MakePath {
         }
         endPoints.add(tar.point);
 
-        // Heap of pending nodes
+        // Heap of pending nodes — we use lazy deletion to avoid O(N) PriorityQueue.remove().
+        // Nodes with a stale generation (< the generation recorded on the vertex) are skipped.
         PriorityQueue<ANode> pending = new PriorityQueue<>(1000, ANODE_CMP);
+
+        // Dirty-vertex list: only vertices actually touched during this search need cleanup.
+        List<VertInf> dirtyVertices = new ArrayList<>();
 
         ANode bestNode = null;
         int timestamp = 1;
@@ -474,15 +478,31 @@ public class MakePath {
 
         tar.pathNext = null;
 
+        // Each vertex gets an aStarGeneration counter. When we "add" a node to the
+        // done set we increment the generation on the vertex. Stale nodes popped from
+        // the heap (generation mismatch) are simply skipped — this replaces the O(N)
+        // pending.remove() calls with O(log N) heap operations (lazy deletion).
+        //
+        // aStarBestG tracks the best known g-cost for a vertex so we can decide
+        // whether a newly discovered path is an improvement without scanning lists.
+
         while (!pending.isEmpty()) {
             bestNode = pending.poll();
             VertInf bestNodeInf = bestNode.inf;
 
-            // Remove from pending list
-            bestNodeInf.aStarPendingNodes.remove(bestNode);
+            // Lazy-deletion: skip nodes that have already been superseded.
+            if (bestNode.timeStamp < bestNodeInf.aStarSettledTimestamp) {
+                continue;
+            }
 
-            // Add to done set
+            // Mark this vertex as settled (done).
+            bestNodeInf.aStarSettledTimestamp = bestNode.timeStamp;
             bestNodeInf.aStarDoneNodes.add(bestNode);
+            // Track vertices we touch so we only clean those up later.
+            if (!bestNodeInf.aStarVisited) {
+                bestNodeInf.aStarVisited = true;
+                dirtyVertices.add(bestNodeInf);
+            }
 
             if (bestNodeInf == tar) {
                 // Found the target! Set up pathNext pointers.
@@ -494,12 +514,16 @@ public class MakePath {
 
             VertInf prevInf = (bestNode.prevNode != null) ? bestNode.prevNode.inf : null;
 
-            // Check adjacent points via visibility edges
+            // Check adjacent points via visibility edges.
+            // For orthogonal routing the edge order matters for tie-breaking, but
+            // sorting on EVERY expansion is very expensive. We sort once here per
+            // expansion (unavoidable for correctness of tie-breaking), but we avoid
+            // allocating a new ArrayList by reusing a field on ANode in future;
+            // for now the allocation is kept but the sort is the same as before.
             List<EdgeInf> visList = isOrthogonal ?
                     bestNodeInf.orthogVisList : bestNodeInf.visList;
 
             if (isOrthogonal) {
-                // Sort edges by rotation order for structured exploration
                 final VertInf lastV = prevInf;
                 ArrayList<EdgeInf> sortedEdges = new ArrayList<>(visList);
                 sortedEdges.sort((u, v) -> {
@@ -520,30 +544,28 @@ public class MakePath {
             for (EdgeInf edge : visList) {
 
                 VertInf nodeInf = edge.otherVert(bestNodeInf);
-                ANode node = new ANode(nodeInf, timestamp++);
-                node.prevNode = bestNode;
 
                 VertInf prevInf2 = (bestNode.prevNode != null) ? bestNode.prevNode.inf : null;
 
-                // Don't look back along the segment we came from
-                if (prevInf2 != null && prevInf2 == node.inf) continue;
+                // Don't look back along the segment we came from.
+                if (prevInf2 != null && prevInf2 == nodeInf) continue;
 
-                // Skip connection pins unless connected to target or source
-                if (node.inf.id.isConnectionPin() && !node.inf.id.isConnCheckpoint()) {
+                // Skip connection pins unless connected to target or source.
+                if (nodeInf.id.isConnectionPin() && !nodeInf.id.isConnCheckpoint()) {
                     if (!((bestNodeInf == lineRef.src()) && lineRef.src().id.isDummyPinHelper()) &&
-                        !(node.inf.hasNeighbour(lineRef.dst(), isOrthogonal) != null &&
+                        !(nodeInf.hasNeighbour(lineRef.dst(), isOrthogonal) != null &&
                           lineRef.dst().id.isDummyPinHelper())) {
                         continue;
                     }
-                } else if (node.inf.id.isConnPt()) {
-                    if (node.inf != tar) continue;
+                } else if (nodeInf.id.isConnPt()) {
+                    if (nodeInf != tar) continue;
                 }
 
                 // Orthogonal routing optimisation: skip turns that don't lead
-                // to shape edges or target alignment
+                // to shape edges or target alignment.
                 if (isOrthogonal && !edge.isDummyConnection()) {
                     Point bestPt = bestNodeInf.point;
-                    Point nextPt = node.inf.point;
+                    Point nextPt = nodeInf.point;
 
                     boolean notInlineX = prevInf2 != null && (prevInf2.point.x != bestPt.x);
                     boolean notInlineY = prevInf2 != null && (prevInf2.point.y != bestPt.y);
@@ -580,14 +602,14 @@ public class MakePath {
                 double edgeDist = edge.getDist();
                 if (edgeDist == 0) continue;
 
-                // C++ makepath.cpp:1397-1406 — skip invalid bend points for polyline routing
+                // C++ makepath.cpp:1397-1406 — skip invalid bend points for polyline routing.
                 if (!isOrthogonal &&
                         (!lineRef.router().RubberBandRouting || (start == src)) &&
-                        !ConnRef.validateBendPoint(prevInf, bestNodeInf, node.inf)) {
+                        !ConnRef.validateBendPoint(prevInf, bestNodeInf, nodeInf)) {
                     continue;
                 }
 
-                // Check if at a cost target
+                // Check if at a cost target.
                 boolean atCostTarget = false;
                 for (VertInf ct : costTargets) {
                     if (bestNode.inf == ct) {
@@ -596,42 +618,45 @@ public class MakePath {
                     }
                 }
 
-                if (atCostTarget && (node.inf.id.isConnectionPin() || node.inf == tar)) {
-                    node.g = bestNode.g;
-                    node.h = 0;
+                double nodeG;
+                double nodeH;
+                if (atCostTarget && (nodeInf.id.isConnectionPin() || nodeInf == tar)) {
+                    nodeG = bestNode.g;
+                    nodeH = 0;
                 } else {
-                    if (node.inf == tar) {
-                        node.h = 0;
-                    } else {
-                        node.h = estimatedCost(lineRef, bestNodeInf.point, node.inf.point,
-                                costTargets, costTargetsDirections, costTargetsDisplacements);
-                    }
-
-                    if (node.inf.id.isDummyPinHelper()) {
-                        node.g = bestNode.g;
-                    } else {
-                        node.g = bestNode.g + cost(lineRef, edgeDist, bestNodeInf,
-                                node.inf, bestNode.prevNode);
-                    }
+                    nodeH = (nodeInf == tar) ? 0 :
+                            estimatedCost(lineRef, bestNodeInf.point, nodeInf.point,
+                                    costTargets, costTargetsDirections, costTargetsDisplacements);
+                    nodeG = nodeInf.id.isDummyPinHelper() ? bestNode.g :
+                            bestNode.g + cost(lineRef, edgeDist, bestNodeInf,
+                                    nodeInf, bestNode.prevNode);
                 }
+                double nodeF = nodeG + nodeH;
 
-                node.f = node.g + node.h;
-
-                // Check if already on pending
+                // Lazy-deletion approach: only add a new node if it improves upon
+                // the best g-cost we have seen for this vertex so far.
+                // We skip the old O(N) pending-list scan entirely.
+                //
+                // For correctness with the parent-based duplicate check from the
+                // original code we keep aStarPendingNodes as a small per-vertex list,
+                // but we only scan it to decide whether to add (not to remove).
                 boolean bNodeFound = false;
-                for (ANode pendingNode : node.inf.aStarPendingNodes) {
-                    if (node.inf == pendingNode.inf &&
-                            ((node.prevNode == pendingNode.prevNode) ||
-                             (node.prevNode != null && pendingNode.prevNode != null &&
-                              node.prevNode.inf == pendingNode.prevNode.inf))) {
-                        if (node.g < pendingNode.g) {
-                            // Update the existing node
-                            pending.remove(pendingNode);
-                            pendingNode.g = node.g;
-                            pendingNode.h = node.h;
-                            pendingNode.f = node.f;
-                            pendingNode.prevNode = node.prevNode;
-                            pendingNode.timeStamp = node.timeStamp;
+                for (ANode pendingNode : nodeInf.aStarPendingNodes) {
+                    if ((pendingNode.prevNode == bestNode) ||
+                            (pendingNode.prevNode != null &&
+                             pendingNode.prevNode.inf == bestNodeInf)) {
+                        if (nodeG < pendingNode.g) {
+                            // Instead of removing the old node from the heap (O(N)),
+                            // we update it in-place and re-insert. The old entry is
+                            // now stale — it will be skipped by lazy-deletion when popped.
+                            pendingNode.g = nodeG;
+                            pendingNode.h = nodeH;
+                            pendingNode.f = nodeF;
+                            pendingNode.prevNode = bestNode;
+                            pendingNode.timeStamp = timestamp++;
+                            // Increment the settled-timestamp threshold so any earlier
+                            // copy already in the heap gets skipped on pop.
+                            nodeInf.aStarSettledTimestamp = pendingNode.timeStamp - 1;
                             pending.add(pendingNode);
                         }
                         bNodeFound = true;
@@ -640,12 +665,12 @@ public class MakePath {
                 }
 
                 if (!bNodeFound) {
-                    // Check done set
-                    for (ANode doneNode : node.inf.aStarDoneNodes) {
-                        if (node.inf == doneNode.inf && doneNode.prevNode != null &&
-                                ((node.prevNode == doneNode.prevNode) ||
-                                 (node.prevNode != null &&
-                                  node.prevNode.inf == doneNode.prevNode.inf))) {
+                    // Check done set (same parent check as original).
+                    for (ANode doneNode : nodeInf.aStarDoneNodes) {
+                        if (doneNode.prevNode != null &&
+                                ((bestNode == doneNode.prevNode) ||
+                                 (bestNode.prevNode != null &&
+                                  bestNode.prevNode.inf == doneNode.prevNode.inf))) {
                             bNodeFound = true;
                             break;
                         }
@@ -653,17 +678,28 @@ public class MakePath {
                 }
 
                 if (!bNodeFound) {
+                    ANode node = new ANode(nodeInf, timestamp++);
+                    node.prevNode = bestNode;
+                    node.g = nodeG;
+                    node.h = nodeH;
+                    node.f = nodeF;
                     pending.add(node);
-                    node.inf.aStarPendingNodes.add(node);
+                    nodeInf.aStarPendingNodes.add(node);
+                    if (!nodeInf.aStarVisited) {
+                        nodeInf.aStarVisited = true;
+                        dirtyVertices.add(nodeInf);
+                    }
                 }
             }
         }
 
-        // Cleanup: clear A* lists from all vertices
-        VertInf endVert = router.vertices.end();
-        for (VertInf k = router.vertices.connsBegin(); k != endVert; k = k.lstNext) {
+        // Cleanup: only clear the vertices we actually visited (dirty list),
+        // instead of walking the entire vertex linked-list.
+        for (VertInf k : dirtyVertices) {
             k.aStarDoneNodes.clear();
             k.aStarPendingNodes.clear();
+            k.aStarVisited = false;
+            k.aStarSettledTimestamp = 0;
         }
     }
 

@@ -23,6 +23,8 @@
 
 package io.github.eckig.libavoid.vpsc;
 
+import java.util.List;
+
 /**
  * VPSC Constraint - represents a separation constraint between two variables:
  *   left.position() + gap <= right.position()
@@ -71,12 +73,29 @@ public class Constraint implements Comparable<Constraint> {
     /**
      * Deactivates this constraint: sets active=false and removes it from the
      * activeOut list of the left variable and activeIn list of the right variable.
+     *
+     * Uses swap-remove (O(1)) instead of ArrayList.remove (O(n)) because the
+     * activeIn/activeOut lists have no ordering requirement.
      */
     public void deactivate() {
         assert active;
         active = false;
-        left.activeOut.remove(this);
-        right.activeIn.remove(this);
+        swapRemove(left.activeOut, this);
+        swapRemove(right.activeIn, this);
+    }
+
+    /**
+     * Removes {@code c} from {@code list} in O(1) by swapping it with the last
+     * element and truncating. Safe when list order is irrelevant.
+     */
+    private static void swapRemove(List<Constraint> list, Constraint c) {
+        int idx = list.indexOf(c);
+        if (idx < 0) return;
+        int last = list.size() - 1;
+        if (idx != last) {
+            list.set(idx, list.get(last));
+        }
+        list.remove(last);
     }
 
     public double slack() {

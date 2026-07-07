@@ -61,6 +61,8 @@ public class Variable {
     public Block block;
     public boolean visited;
     public boolean fixedDesiredPosition;
+    /** Scratch index assigned during iterative DFS traversals; -1 when not in use. */
+    public int dfdvIndex = -1;
     public List<Constraint> in = new ArrayList<>();
     public List<Constraint> out = new ArrayList<>();
 

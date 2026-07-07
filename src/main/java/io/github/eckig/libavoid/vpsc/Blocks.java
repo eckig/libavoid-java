@@ -46,6 +46,21 @@ public class Blocks {
         }
     }
 
+    /**
+     * Reinitializes this Blocks structure for a new solve pass over the same
+     * variable list.  Reuses the existing ArrayList backing store to avoid
+     * allocation, and resets blockTimeCtr.
+     */
+    public void reinitialize(List<Variable> vs) {
+        blockTimeCtr = 0;
+        m_blocks.clear();
+        for (Variable v : vs) {
+            Block b = new Block(this, v);
+            m_blocks.add(b);
+            b.timeStamp = blockTimeCtr;
+        }
+    }
+
     public int size() {
         return m_blocks.size();
     }

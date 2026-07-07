@@ -74,6 +74,44 @@ public class IncSolver {
     }
 
     /**
+     * Resets the solver for another solve pass over the same variable and
+     * constraint lists, without allocating new objects.
+     *
+     * Only the constraint gaps may have changed between iterations (as done
+     * by the nudgeOrthogonalRoutes do/while loop).  Everything else —
+     * variables, constraints, their graph wiring — stays structurally
+     * identical, so we only need to:
+     *  1. Re-clear and re-wire in/out/activeIn/activeOut on every variable.
+     *  2. Reset c.active on every constraint.
+     *  3. Reinitialize the Blocks structure (one Block per variable).
+     *  4. Refill the inactive list from cs.
+     */
+    public void reset() {
+        needsScaling = false;
+        for (int i = 0; i < n; i++) {
+            Variable v = vs.get(i);
+            v.in.clear();
+            v.out.clear();
+            v.activeIn.clear();
+            v.activeOut.clear();
+            needsScaling |= (v.scale != 1);
+        }
+        for (int i = 0; i < m; i++) {
+            Constraint c = cs.get(i);
+            c.left.out.add(c);
+            c.right.in.add(c);
+            c.needsScaling = needsScaling;
+        }
+        bs.reinitialize(vs);
+
+        inactive.clear();
+        inactive.addAll(cs);
+        for (Constraint c : inactive) {
+            c.active = false;
+        }
+    }
+
+    /**
      * Stores the relative positions of the variables in their finalPosition field.
      */
     protected void copyResult() {
@@ -102,23 +140,22 @@ public class IncSolver {
             if (lb != rb) {
                 lb.merge(rb, v);
             } else {
-                if (lb.isActiveDirectedPathBetween(v.right, v.left)) {
-                    // cycle found, relax the violated, cyclic constraint
+                // constraint is within block, need to split first
+                // If splitBetween returns null there is no path from v.left to v.right
+                // through active constraints (either a cycle right→left exists, or the
+                // constraint is genuinely unsatisfiable).  Both cases mark v unsatisfiable,
+                // so the separate isActiveDirectedPathBetween cycle-check is redundant.
+                Block newLb, newRb;
+                Block[] result = splitResult;
+                Constraint splitConstraint = lb.splitBetween(v.left, v.right, result);
+                if (splitConstraint != null) {
+                    inactive.add(splitConstraint);
+                } else {
                     v.unsatisfiable = true;
                     continue;
                 }
-            // constraint is within block, need to split first
-                Block newLb, newRb;
-                    Block[] result = new Block[2];
-                    Constraint splitConstraint = lb.splitBetween(v.left, v.right, result);
-                    if (splitConstraint != null) {
-                        inactive.add(splitConstraint);
-                    } else {
-                        v.unsatisfiable = true;
-                        continue;
-                    }
-                    newLb = result[0];
-                    newRb = result[1];
+                newLb = result[0];
+                newRb = result[1];
                 if (v.slack() >= 0) {
                     // v was satisfied by the above split!
                     inactive.add(v);
@@ -164,6 +201,10 @@ public class IncSolver {
         }
     }
 
+    // Reusable result array for split() calls — avoids a new Block[2] allocation
+    // on every iteration of the splitBlocks loop.
+    private final Block[] splitResult = new Block[2];
+
     public void splitBlocks() {
         moveBlocks();
         splitCnt = 0;
@@ -174,7 +215,7 @@ public class IncSolver {
             Constraint v = b.findMinLM();
             if (v != null && v.lm < LAGRANGIAN_TOLERANCE) {
                 splitCnt++;
-                Block[] result = new Block[2];
+                Block[] result = splitResult;
                 b.split(result, v);
                 Block l = result[0];
                 Block r = result[1];

@@ -29,11 +29,15 @@ import io.github.eckig.libavoid.vpsc.Constraint;
 import io.github.eckig.libavoid.vpsc.IncSolver;
 import io.github.eckig.libavoid.vpsc.Variable;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -130,22 +134,23 @@ public class ImproveOrthogonalRoutes {
         }
 
         // Do segment splitting.
+        // Use triangular iteration (ind2 = ind1+1) and split both ways per pair,
+        // which is equivalent to the original N×N loop but with half the calls.
         for (int ind1 = 0; ind1 < connRefs.size(); ++ind1) {
             ConnRef conn = connRefs.get(ind1);
             if (conn.routingType() != ConnType.Orthogonal) {
                 continue;
             }
-            for (int ind2 = 0; ind2 < connRefs.size(); ++ind2) {
-                if (ind1 == ind2) {
-                    continue;
-                }
+            for (int ind2 = ind1 + 1; ind2 < connRefs.size(); ++ind2) {
                 ConnRef conn2 = connRefs.get(ind2);
                 if (conn2.routingType() != ConnType.Orthogonal) {
                     continue;
                 }
                 Polygon route = connRoutes.get(ind1);
                 Polygon route2 = connRoutes.get(ind2);
+                // Split both ways (equivalent to original ind1→ind2 and ind2→ind1 calls)
                 ConnectorCrossings.splitBranchingSegments(route2, true, route, 0);
+                ConnectorCrossings.splitBranchingSegments(route, true, route2, 0);
             }
         }
 
@@ -353,29 +358,33 @@ public class ImproveOrthogonalRoutes {
         double reductionSteps = 10.0;
 
         // Do the actual nudging.
+        // Use a LinkedList for O(1) removal during region-building.
+        LinkedList<ShiftSegment> remaining = new LinkedList<>(m_segment_list);
+        m_segment_list.clear();
+
         List<ShiftSegment> currentRegion = new ArrayList<>();
-        while (!m_segment_list.isEmpty()) {
-            // Take a reference segment
-            ShiftSegment currentSegment = m_segment_list.getFirst();
-            // Then, find the segments that overlap this one.
+        while (!remaining.isEmpty()) {
+            // Take a reference segment and seed the region.
             currentRegion.clear();
-            currentRegion.add(currentSegment);
-            m_segment_list.removeFirst();
-            for (int curr = 0; curr < m_segment_list.size(); ) {
-                boolean overlaps = false;
-                for (ShiftSegment curr2 : currentRegion) {
-                    if (m_segment_list.get(curr).overlapsWith(curr2, dimension)) {
-                        overlaps = true;
-                        break;
+            currentRegion.add(remaining.removeFirst());
+
+            // Single-pass interval-merge: iterate remaining once, collecting all
+            // segments that overlap *any* segment already in the region.
+            // Repeat until no new segments are added (transitive closure).
+            boolean added = true;
+            while (added) {
+                added = false;
+                ListIterator<ShiftSegment> it = remaining.listIterator();
+                while (it.hasNext()) {
+                    ShiftSegment candidate = it.next();
+                    for (ShiftSegment inRegion : currentRegion) {
+                        if (candidate.overlapsWith(inRegion, dimension)) {
+                            currentRegion.add(candidate);
+                            it.remove();
+                            added = true;
+                            break;
+                        }
                     }
-                }
-                if (overlaps) {
-                    currentRegion.add(m_segment_list.get(curr));
-                    m_segment_list.remove(curr);
-                    // Consider segments from the beginning.
-                    curr = 0;
-                } else {
-                    ++curr;
                 }
             }
 
@@ -477,14 +486,20 @@ public class ImproveOrthogonalRoutes {
             }
 
             // Repeatedly try solving.
+            // The solver is constructed once and reset() is called on subsequent
+            // iterations to reinitialize state without allocating new objects.
+            // Only constraint gaps change between iterations, so the structural
+            // wiring (variables, constraint graph) stays identical — reset() is
+            // sufficient and avoids the per-iteration allocation overhead that
+            // was visible as <init> / add / gro in the profiler flamegraph.
             boolean justAddedConstraint = false;
             boolean satisfied;
 
             // Track unsatisfied variable ranges for constraint gap rewriting.
             List<int[]> unsatisfiedRanges = new ArrayList<>(); // pairs of [first, second]
 
+            IncSolver f = new IncSolver(vs, cs);
             do {
-                IncSolver f = new IncSolver(vs, cs);
                 f.solve();
 
                 // Determine if the problem was satisfied.
@@ -577,6 +592,11 @@ public class ImproveOrthogonalRoutes {
                             }
                         }
                     }
+                }
+
+                if (!satisfied && (sepDist > 0.0001)) {
+                    // Reset the solver for the next iteration, reusing all objects.
+                    f.reset();
                 }
             }
             while (!satisfied && (sepDist > 0.0001));
