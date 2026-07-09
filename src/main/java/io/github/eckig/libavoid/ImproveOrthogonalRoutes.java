@@ -154,6 +154,12 @@ public class ImproveOrthogonalRoutes {
             }
         }
 
+        // Reuse a single ConnectorCrossings instance across all pairs to avoid
+        // O(N²) object allocations — the constructor only calls clear(), so
+        // reinitialising the pair-specific fields is equivalent and allocation-free.
+        ConnectorCrossings cross = new ConnectorCrossings(null, true, null, null, null);
+        cross.pointOrders = m_point_orders;
+
         for (int ind1 = 0; ind1 < connRefs.size(); ++ind1) {
             ConnRef conn = connRefs.get(ind1);
             if (conn.routingType() != ConnType.Orthogonal) {
@@ -166,9 +172,12 @@ public class ImproveOrthogonalRoutes {
                 }
                 Polygon route = connRoutes.get(ind1);
                 Polygon route2 = connRoutes.get(ind2);
+                cross.poly = route2;
+                cross.conn = route;
+                cross.polyConnRef = conn2;
+                cross.connConnRef = conn;
+
                 int crossingFlags = 0;
-                ConnectorCrossings cross = new ConnectorCrossings(route2, true, route, conn2, conn);
-                cross.pointOrders = m_point_orders;
                 for (int i = 1; i < route.size(); ++i) {
                     boolean finalSegment = ((i + 1) == route.size());
                     cross.countForSegment(i, finalSegment);
