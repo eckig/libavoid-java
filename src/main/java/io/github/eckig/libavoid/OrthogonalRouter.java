@@ -474,10 +474,6 @@ final class OrthogonalRouter {
                 // else: vert moved to new position group, last is in right place
             }
         }
-
-        // findSideBefore, findSideAfter, getNext, peekNext removed —
-        // invented helpers with 0 callers, no C++ equivalent.
-        // generateVisibilityEdgesFromBreakpointSet uses indexed access instead.
     }
 
     // =========================================================================

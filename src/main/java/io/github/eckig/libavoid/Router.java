@@ -455,9 +455,8 @@ public class Router {
     public List<ConnRef> m_connectors;
 
     // ContainsMap: maps VertID -> set of obstacle IDs that contain that vertex.
-    // Corresponds to C++ ContainsMap contains and ContainsMap enclosingClusters.
+    // Corresponds to C++ ContainsMap contains (enclosingClusters is not ported, see class Javadoc).
     public Map<VertID, Set<Integer>> contains = new HashMap<>();
-    public Map<VertID, Set<Integer>> enclosingClusters = new HashMap<>();
 
     // Routing options flags:
     public boolean PartialTime;
@@ -489,9 +488,6 @@ public class Router {
 
     ConnRerouteFlagDelegate m_conn_reroute_flags;
 
-    // Progress tracking and transaction cancelling: not ported, never set to true (C++ sets it via
-    // performContinuationCheck). Kept so the ported loops stay close to C++.
-    private boolean m_abort_transaction;
 
     // Overall modes:
     boolean m_allows_polyline_routing;
@@ -571,7 +567,6 @@ public class Router {
 
         m_conn_reroute_flags = new ConnRerouteFlagDelegate();
 
-        m_abort_transaction = false;
     }
 
     /**
@@ -635,7 +630,6 @@ public class Router {
         boolean notPartialTime = !(PartialFeedback && PartialTime);
         boolean seenShapeMovesOrDeletes = false;
 
-        m_abort_transaction = false;
 
         List<Integer> deletedObstacles = new ArrayList<>();
         Collections.sort(actionList);
@@ -982,10 +976,6 @@ public class Router {
     // -----------------------------------------------------------------------
     // Connector operations
     // -----------------------------------------------------------------------
-
-    // addConnector(ConnRef) removed — dead code with 0 callers.
-    // C++ adds connectors via ConnRef::makeActive(), which is already
-    // faithfully translated in ConnRef.java.
 
     /**
      * Remove a connector from the router scene.
@@ -1345,13 +1335,6 @@ public class Router {
         return length;
     }
 
-    // -----------------------------------------------------------------------
-    // Endpoint resolution
-    // -----------------------------------------------------------------------
-
-    // resolveEndpoint(ConnEnd) removed — invented method with 0 callers.
-    // Use ConnEnd.position() instead (faithful C++ translation).
-
     /**
      * Estimate of connector cost used for tie-breaking in crossing resolution.
      * Translated from cheapEstimatedCost() in router.cpp.
@@ -1560,15 +1543,9 @@ public class Router {
         List<ConnRef> connList = new ArrayList<>(m_connectors);
         for (int ii = 0; ii < connList.size(); ii++) {
             ConnRef connI = connList.get(ii);
-            // Progress reporting and continuation check.
-            if (m_abort_transaction) {
-                m_in_crossing_rerouting_stage = false;
-                return;
-            }
-
             Polygon iRoute = connI.route();
             if (iRoute.size() == 0) {
-                // Rerouted hyperedges will have an empty route.
+                // Not routed (yet), nothing can cross it.
                 continue;
             }
 
@@ -1635,12 +1612,6 @@ public class Router {
                         // Free pin assignments.
                         conn.freeActivePins();
                     } else if (pass == 1) {
-                        // Progress reporting and continuation check.
-                        if (m_abort_transaction) {
-                            m_in_crossing_rerouting_stage = false;
-                            return;
-                        }
-
                         // Recompute this path.
                         conn.generatePath();
                     }
@@ -1657,7 +1628,6 @@ public class Router {
     // Translated from Router::generateContains() in router.cpp line 1674.
     void generateContains(VertInf pt) {
         contains.put(pt.id, new HashSet<>());
-        enclosingClusters.put(pt.id, new HashSet<>());
 
         // Don't count points on the border as being inside.
         boolean countBorder = false;
@@ -1982,8 +1952,6 @@ public class Router {
             }
         }
     }
-
-    // routeDistance(Polygon) removed — C++ reads conn->m_route_dist directly (router.cpp:1805)
 
     // -----------------------------------------------------------------------
     // Remove object from queued actions
