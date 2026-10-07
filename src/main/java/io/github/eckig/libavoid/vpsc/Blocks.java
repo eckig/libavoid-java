@@ -35,6 +35,8 @@ import java.util.List;
 public class Blocks {
     private final List<Block> m_blocks;
     public long blockTimeCtr;
+    /** DFS scratch arrays shared by all blocks of this container. */
+    final Scratch scratch = new Scratch();
 
     public Blocks(List<Variable> vs) {
         this.blockTimeCtr = 0;

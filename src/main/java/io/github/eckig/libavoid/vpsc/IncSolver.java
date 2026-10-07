@@ -149,6 +149,8 @@ public class IncSolver {
      * C++ IncSolver::satisfy() from vpsc.cpp line 274
      */
     public void satisfy() {
+        // NOTE: the split constraint chosen in the loop below keeps the result feasible, but only solve() (which calls
+        // satisfy() repeatedly, each time starting with the lm based splitBlocks()) guarantees an optimal result.
         splitBlocks();
         Constraint v;
         while ((v = mostViolated()) != null &&

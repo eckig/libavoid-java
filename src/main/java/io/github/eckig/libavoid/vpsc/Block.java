@@ -26,6 +26,7 @@ package io.github.eckig.libavoid.vpsc;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A Block of variables in the VPSC solver. A block contains one or more
@@ -43,57 +44,12 @@ public class Block {
     // Parent container, that holds the blockTimeCtr.
     Blocks blocks;
 
-    // -----------------------------------------------------------------------
-    // Cached scratch arrays — reused across all DFS calls on this block.
-    // The arrays are sized to the block capacity and grown lazily.
-    // All methods that use them must reset entries they wrote before returning.
-    // This eliminates per-call array allocation in the hot split_path /
-    // compute_dfdv_impl / reset_active_lm / populateSplitBlock paths.
-    // -----------------------------------------------------------------------
-    private static final int INITIAL_SCRATCH = 8;
+    // DFS scratch arrays, shared by all blocks of a solver (see Scratch). All methods using them must reset
+    // entries they wrote before returning. Not re-entrant: the DFS methods never nest.
+    private final Scratch sc;
 
-    // DFS scratch arrays — allocated lazily on first ensureScratch() call.
-    // Blocks that are never used as DFS roots (e.g. freshly-split single-variable
-    // blocks that get merged immediately) pay zero allocation cost.
-    private Variable[]    scratch_sVar    = null;
-    private Variable[]    scratch_sParent = null;
-    private Constraint[]  scratch_sCon    = null;
-    private boolean[]     scratch_sOut    = null;
-
-    // Visit-order arrays (used by compute_dfdv_impl and split_path)
-    private Variable[]    scratch_order       = null;
-    private int[]         scratch_parentIdx   = null;
-    private Constraint[]  scratch_viaCon      = null;
-    private boolean[]     scratch_viaOut      = null;
-
-    // dfdv values (used by compute_dfdv_impl)
-    private double[]      scratch_dfdv        = null;
-
-    /** Ensures all primary scratch arrays are at least {@code cap} long. */
     private void ensureScratch(int cap) {
-        if (scratch_sVar == null) {
-            int newCap = Math.max(cap, INITIAL_SCRATCH);
-            scratch_sVar    = new Variable[newCap];
-            scratch_sParent = new Variable[newCap];
-            scratch_sCon    = new Constraint[newCap];
-            scratch_sOut    = new boolean[newCap];
-            scratch_order      = new Variable[newCap];
-            scratch_parentIdx  = new int[newCap];
-            scratch_viaCon     = new Constraint[newCap];
-            scratch_viaOut     = new boolean[newCap];
-            scratch_dfdv       = new double[newCap];
-        } else if (scratch_sVar.length < cap) {
-            int newCap = Math.max(cap, scratch_sVar.length * 2);
-            scratch_sVar    = new Variable[newCap];
-            scratch_sParent = new Variable[newCap];
-            scratch_sCon    = new Constraint[newCap];
-            scratch_sOut    = new boolean[newCap];
-            scratch_order      = new Variable[newCap];
-            scratch_parentIdx  = new int[newCap];
-            scratch_viaCon     = new Constraint[newCap];
-            scratch_viaOut     = new boolean[newCap];
-            scratch_dfdv       = new double[newCap];
-        }
+        sc.ensure(cap);
     }
 
     public Block(Blocks blocks, Variable v) {
@@ -102,6 +58,7 @@ public class Block {
         this.deleted = false;
         this.timeStamp = 0;
         this.blocks = blocks;
+        this.sc = Objects.requireNonNull(blocks, "blocks").scratch;
         this.ps = new PositionStats();
         if (v != null) {
             v.offset = 0;
@@ -124,6 +81,7 @@ public class Block {
         this.deleted = false;
         this.timeStamp = 0;
         this.blocks = blocks;
+        this.sc = Objects.requireNonNull(blocks, "blocks").scratch;
         this.ps = new PositionStats();
     }
 
@@ -190,34 +148,27 @@ public class Block {
     }
 
     /**
-     * Variant without min_lm tracking (used by findMinLMBetween → split_path path).
-     */
-    double compute_dfdv(Variable v, Variable u) {
-        return compute_dfdv_impl(v, u, null);
-    }
-
-    /**
      * Shared iterative post-order DFS implementation.
      * min_lm may be null when min-lm tracking is not required.
      *
      * Uses a plain double[] indexed by a sequential per-Variable scratch index
      * (Variable.dfdvIndex) instead of an IdentityHashMap, eliminating all
      * hashing, boxing, and resize overhead.
-     * Scratch arrays are cached on the Block instance to avoid per-call allocation.
+     * Scratch arrays are shared by all blocks of the solver (see Scratch) to avoid per-call allocation.
      */
     private double compute_dfdv_impl(Variable root, Variable blockedParent, Constraint[] min_lm) {
         int capacity = vars.size();
         ensureScratch(capacity);
 
         // Use cached arrays
-        Variable[]   order         = scratch_order;
-        int[]        parentIdx     = scratch_parentIdx;
-        Constraint[] viaConstraint = scratch_viaCon;
-        boolean[]    viaOut        = scratch_viaOut;
-        Variable[]   sVar          = scratch_sVar;
-        Variable[]   sParent       = scratch_sParent;
-        Constraint[] sCon          = scratch_sCon;
-        boolean[]    sOut          = scratch_sOut;
+        Variable[]   order         = sc.order;
+        int[]        parentIdx     = sc.parentIdx;
+        Constraint[] viaConstraint = sc.viaCon;
+        boolean[]    viaOut        = sc.viaOut;
+        Variable[]   sVar          = sc.sVar;
+        Variable[]   sParent       = sc.sParent;
+        Constraint[] sCon          = sc.sCon;
+        boolean[]    sOut          = sc.sOut;
 
         int stackSize = 0;
 
@@ -251,10 +202,10 @@ public class Block {
                 if (c.right != parent) {
                     if (stackSize == sVar.length) {
                         int newLen = stackSize * 2;
-                        sVar    = scratch_sVar    = Arrays.copyOf(sVar,    newLen);
-                        sParent = scratch_sParent = Arrays.copyOf(sParent, newLen);
-                        sCon    = scratch_sCon    = Arrays.copyOf(sCon,    newLen);
-                        sOut    = scratch_sOut    = Arrays.copyOf(sOut,    newLen);
+                        sVar    = sc.sVar    = Arrays.copyOf(sVar,    newLen);
+                        sParent = sc.sParent = Arrays.copyOf(sParent, newLen);
+                        sCon    = sc.sCon    = Arrays.copyOf(sCon,    newLen);
+                        sOut    = sc.sOut    = Arrays.copyOf(sOut,    newLen);
                     }
                     sVar[stackSize]    = c.right;
                     sParent[stackSize] = v;
@@ -270,10 +221,10 @@ public class Block {
                 if (c.left != parent) {
                     if (stackSize == sVar.length) {
                         int newLen = stackSize * 2;
-                        sVar    = scratch_sVar    = Arrays.copyOf(sVar,    newLen);
-                        sParent = scratch_sParent = Arrays.copyOf(sParent, newLen);
-                        sCon    = scratch_sCon    = Arrays.copyOf(sCon,    newLen);
-                        sOut    = scratch_sOut    = Arrays.copyOf(sOut,    newLen);
+                        sVar    = sc.sVar    = Arrays.copyOf(sVar,    newLen);
+                        sParent = sc.sParent = Arrays.copyOf(sParent, newLen);
+                        sCon    = sc.sCon    = Arrays.copyOf(sCon,    newLen);
+                        sOut    = sc.sOut    = Arrays.copyOf(sOut,    newLen);
                     }
                     sVar[stackSize]    = c.left;
                     sParent[stackSize] = v;
@@ -285,10 +236,10 @@ public class Block {
         }
 
         // Ensure dfdv array is large enough (may be smaller than order array)
-        if (scratch_dfdv.length < nodeCount) {
-            scratch_dfdv = new double[Math.max(nodeCount, scratch_dfdv.length * 2)];
+        if (sc.dfdv.length < nodeCount) {
+            sc.dfdv = new double[Math.max(nodeCount, sc.dfdv.length * 2)];
         }
-        double[] dfdv = scratch_dfdv;
+        double[] dfdv = sc.dfdv;
         for (int i = 0; i < nodeCount; i++) {
             dfdv[i] = order[i].dfdv();
         }
@@ -327,23 +278,28 @@ public class Block {
     private static final Constraint TRUE = new Constraint(null, null, 0);
 
     /**
-     * Search for the constraint with the smallest lm on the path from lv to rv.
+     * Searches the (unique) path of active constraints from v to r (early exit when r is reached) and returns the
+     * non-equality constraint traversed in "out" direction closest to r.
      *
-     * Iterative DFS using cached scratch arrays to avoid per-call allocation.
+     * Iterative DFS using the solver's shared scratch arrays to avoid per-call allocation.
      * Variable.visited is used as the "already-enqueued" flag (reset after use).
      * Variable.dfdvIndex stores the sequential visit index for path reconstruction.
+     *
+     * @return the constraint to split on, {@link #TRUE} if the path contains no candidate, {@code null} if r is not
+     *         reachable
      */
-    Constraint split_path(Variable r, Variable v, Variable u, boolean desperation) {
+    Constraint split_path(Variable r, Variable v, Variable u) {
         int capacity = vars.size();
         ensureScratch(capacity);
 
-        Variable[]   sVar       = scratch_sVar;
-        Variable[]   sParent    = scratch_sParent;
-        Constraint[] sCon       = scratch_sCon;
-        boolean[]    sOut       = scratch_sOut;
-        Variable[]   visitOrder = scratch_order;
-        int[]        visitPIdx  = scratch_parentIdx;
-        Constraint[] visitCon   = scratch_viaCon;
+        Variable[]   sVar       = sc.sVar;
+        Variable[]   sParent    = sc.sParent;
+        Constraint[] sCon       = sc.sCon;
+        boolean[]    sOut       = sc.sOut;
+        Variable[]   visitOrder = sc.order;
+        int[]        visitPIdx  = sc.parentIdx;
+        Constraint[] visitCon   = sc.viaCon;
+        boolean[]    visitOut   = sc.viaOut;
 
         int visitCount = 0;
         int stackSize  = 0;
@@ -353,6 +309,7 @@ public class Block {
         visitOrder[visitCount] = v;
         visitPIdx[visitCount]  = -1;
         visitCon[visitCount]   = null;
+        visitOut[visitCount]   = false;
         visitCount++;
         v.visited = true;
 
@@ -377,19 +334,8 @@ public class Block {
                 Variable next = c.left;
                 if (next == parent) continue;
                 if (next == r) {
-                    if (!c.equality) {
-                        if (!desperation) { result = TRUE; break outer; }
-                        Constraint best = c;
-                        int pi = cur.dfdvIndex;
-                        while (pi >= 0) {
-                            Constraint via = visitCon[pi];
-                            if (via != null && !via.equality && via.lm < best.lm) best = via;
-                            pi = visitPIdx[pi];
-                        }
-                        result = best; break outer;
-                    } else {
-                        result = TRUE; break outer;
-                    }
+                    result = closestOutOnPath(c, false, cur.dfdvIndex, visitCon, visitOut, visitPIdx);
+                    break outer;
                 }
                 if (!next.visited) {
                     next.visited = true;
@@ -397,14 +343,15 @@ public class Block {
                     visitOrder[visitCount] = next;
                     visitPIdx[visitCount]  = cur.dfdvIndex;
                     visitCon[visitCount]   = c;
+                    visitOut[visitCount]   = false;
                     visitCount++;
 
                     if (stackSize == sVar.length) {
                         int newLen = stackSize * 2;
-                        sVar    = scratch_sVar    = Arrays.copyOf(sVar,    newLen);
-                        sParent = scratch_sParent = Arrays.copyOf(sParent, newLen);
-                        sCon    = scratch_sCon    = Arrays.copyOf(sCon,    newLen);
-                        sOut    = scratch_sOut    = Arrays.copyOf(sOut,    newLen);
+                        sVar    = sc.sVar    = Arrays.copyOf(sVar,    newLen);
+                        sParent = sc.sParent = Arrays.copyOf(sParent, newLen);
+                        sCon    = sc.sCon    = Arrays.copyOf(sCon,    newLen);
+                        sOut    = sc.sOut    = Arrays.copyOf(sOut,    newLen);
                     }
                     sVar[stackSize]    = next;
                     sParent[stackSize] = cur;
@@ -421,19 +368,8 @@ public class Block {
                 Variable next = c.right;
                 if (next == parent) continue;
                 if (next == r) {
-                    if (!c.equality) {
-                        if (!desperation) { result = c; break outer; }
-                        Constraint best = c;
-                        int pi = cur.dfdvIndex;
-                        while (pi >= 0) {
-                            Constraint via = visitCon[pi];
-                            if (via != null && !via.equality && via.lm < best.lm) best = via;
-                            pi = visitPIdx[pi];
-                        }
-                        result = best; break outer;
-                    } else {
-                        result = TRUE; break outer;
-                    }
+                    result = closestOutOnPath(c, true, cur.dfdvIndex, visitCon, visitOut, visitPIdx);
+                    break outer;
                 }
                 if (!next.visited) {
                     next.visited = true;
@@ -441,14 +377,15 @@ public class Block {
                     visitOrder[visitCount] = next;
                     visitPIdx[visitCount]  = cur.dfdvIndex;
                     visitCon[visitCount]   = c;
+                    visitOut[visitCount]   = true;
                     visitCount++;
 
                     if (stackSize == sVar.length) {
                         int newLen = stackSize * 2;
-                        sVar    = scratch_sVar    = Arrays.copyOf(sVar,    newLen);
-                        sParent = scratch_sParent = Arrays.copyOf(sParent, newLen);
-                        sCon    = scratch_sCon    = Arrays.copyOf(sCon,    newLen);
-                        sOut    = scratch_sOut    = Arrays.copyOf(sOut,    newLen);
+                        sVar    = sc.sVar    = Arrays.copyOf(sVar,    newLen);
+                        sParent = sc.sParent = Arrays.copyOf(sParent, newLen);
+                        sCon    = sc.sCon    = Arrays.copyOf(sCon,    newLen);
+                        sOut    = sc.sOut    = Arrays.copyOf(sOut,    newLen);
                     }
                     sVar[stackSize]    = next;
                     sParent[stackSize] = cur;
@@ -468,8 +405,27 @@ public class Block {
         return result;
     }
 
+    /**
+     * Walks the path found by {@link #split_path} back from r to v and returns the first non-equality constraint
+     * traversed in "out" direction, or {@link #TRUE} if there is none.
+     */
+    private static Constraint closestOutOnPath(Constraint last, boolean lastOut, int pi, Constraint[] visitCon,
+            boolean[] visitOut, int[] visitPIdx) {
+        if (lastOut && !last.equality) {
+            return last;
+        }
+        while (pi >= 0) {
+            final Constraint via = visitCon[pi];
+            if (via != null && visitOut[pi] && !via.equality) {
+                return via;
+            }
+            pi = visitPIdx[pi];
+        }
+        return TRUE;
+    }
+
     Constraint split_path(Variable r, Variable v) {
-        return split_path(r, v, null, false);
+        return split_path(r, v, null);
     }
 
     /**
@@ -480,8 +436,8 @@ public class Block {
         int capacity = vars.size();
         ensureScratch(capacity);
 
-        Variable[] sVar    = scratch_sVar;
-        Variable[] sParent = scratch_sParent;
+        Variable[] sVar    = sc.sVar;
+        Variable[] sParent = sc.sParent;
         int stackSize = 0;
 
         sVar[stackSize]    = start;
@@ -500,8 +456,8 @@ public class Block {
                     c.lm = 0;
                     if (stackSize == sVar.length) {
                         int newLen = stackSize * 2;
-                        sVar    = scratch_sVar    = Arrays.copyOf(sVar,    newLen);
-                        sParent = scratch_sParent = Arrays.copyOf(sParent, newLen);
+                        sVar    = sc.sVar    = Arrays.copyOf(sVar,    newLen);
+                        sParent = sc.sParent = Arrays.copyOf(sParent, newLen);
                     }
                     sVar[stackSize]    = c.right;
                     sParent[stackSize] = v;
@@ -515,8 +471,8 @@ public class Block {
                     c.lm = 0;
                     if (stackSize == sVar.length) {
                         int newLen = stackSize * 2;
-                        sVar    = scratch_sVar    = Arrays.copyOf(sVar,    newLen);
-                        sParent = scratch_sParent = Arrays.copyOf(sParent, newLen);
+                        sVar    = sc.sVar    = Arrays.copyOf(sVar,    newLen);
+                        sParent = sc.sParent = Arrays.copyOf(sParent, newLen);
                     }
                     sVar[stackSize]    = c.left;
                     sParent[stackSize] = v;
@@ -537,26 +493,31 @@ public class Block {
     }
 
     /**
-     * Finds the constraint to split on the path from lv to rv.
+     * NOTE: despite its (C++) name, this does not use lagrange multipliers, see below.
      *
-     * The reset_active_lm + compute_dfdv calls are omitted here: split_path is
-     * always called with desperation=false, so it never reads lm values — it
-     * only checks c.equality. Removing those two O(N) traversals eliminates
-     * ~65% of the work that was previously visible inside splitBetween.
+     * Finds the constraint to split on, so that lv and rv end up in different blocks with lv in the left one: a
+     * non-equality constraint traversed in "out" direction on the path from lv to rv (the one closest to rv).
+     *
+     * <p>
+     * Deviation from the C++ original, which chooses the constraint with the smallest lagrange multiplier on the
+     * path: computing the multipliers needs a traversal of the whole block for every split and dominates the
+     * routing time for large diagrams. Any such constraint keeps the solution feasible, and the optimality is
+     * restored by the lm based splitBlocks() in every satisfy() of IncSolver.solve(). Measured: equal cost within
+     * the tolerance of solve(), routes may differ marginally (e.g. 3 of 495 routes by up to 1.5 px).
+     * </p>
+     *
+     * @return the constraint to split on, or {@code null} if the path contains none (or rv is not reachable)
      */
     public Constraint findMinLMBetween(Variable lv, Variable rv) {
-        final var min_lm = split_path(rv, lv);
-        if (min_lm == null || min_lm == TRUE) {
-            return null;
-        }
-        return min_lm;
+        final var c = split_path(rv, lv);
+        return c == null || c == TRUE ? null : c;
     }
 
     /**
      * Populates block b by traversing the active constraint tree adding variables.
      *
      * Optimisations vs. the previous version:
-     *  - Iterative DFS (no recursion) using the source block's cached scratch arrays.
+     *  - Iterative DFS (no recursion) using the solver's shared scratch arrays.
      *  - Variables are registered on b (v.block = b, vars.add(v), ps accumulation)
      *    without recomputing posn after every single variable.  posn is computed
      *    once at the end, saving (N-1) divisions per call.
@@ -565,8 +526,8 @@ public class Block {
         int capacity = vars.size();
         ensureScratch(capacity);
 
-        Variable[] sVar    = scratch_sVar;
-        Variable[] sParent = scratch_sParent;
+        Variable[] sVar    = sc.sVar;
+        Variable[] sParent = sc.sParent;
         int stackSize = 0;
 
         sVar[stackSize]    = startV;
@@ -591,8 +552,8 @@ public class Block {
                 if (c.left != parent) {
                     if (stackSize == sVar.length) {
                         int newLen = stackSize * 2;
-                        sVar    = scratch_sVar    = Arrays.copyOf(sVar,    newLen);
-                        sParent = scratch_sParent = Arrays.copyOf(sParent, newLen);
+                        sVar    = sc.sVar    = Arrays.copyOf(sVar,    newLen);
+                        sParent = sc.sParent = Arrays.copyOf(sParent, newLen);
                     }
                     sVar[stackSize]    = c.left;
                     sParent[stackSize] = v;
@@ -604,8 +565,8 @@ public class Block {
                 if (c.right != parent) {
                     if (stackSize == sVar.length) {
                         int newLen = stackSize * 2;
-                        sVar    = scratch_sVar    = Arrays.copyOf(sVar,    newLen);
-                        sParent = scratch_sParent = Arrays.copyOf(sParent, newLen);
+                        sVar    = sc.sVar    = Arrays.copyOf(sVar,    newLen);
+                        sParent = sc.sParent = Arrays.copyOf(sParent, newLen);
                     }
                     sVar[stackSize]    = c.right;
                     sParent[stackSize] = v;
@@ -624,14 +585,14 @@ public class Block {
      *
      * Iterative BFS/DFS replaces the previously recursive implementation to
      * eliminate JVM stack-frame overhead on long active-constraint chains.
-     * Uses the block's cached scratch arrays (only sVar/sParent needed).
+     * Uses the solver's shared scratch arrays (only sVar/sParent needed).
      */
     public boolean isActiveDirectedPathBetween(Variable u, Variable v) {
         if (u == v) return true;
-        int capacity = Math.max(vars.size(), INITIAL_SCRATCH);
+        int capacity = vars.size();
         ensureScratch(capacity);
 
-        Variable[] stack   = scratch_sVar;
+        Variable[] stack   = sc.sVar;
         int stackSize = 0;
 
         stack[stackSize++] = u;
@@ -643,7 +604,7 @@ public class Block {
                 Variable next = activeOut.get(i).right;
                 if (next == v) return true;
                 if (stackSize == stack.length) {
-                    stack = scratch_sVar = Arrays.copyOf(stack, stackSize * 2);
+                    stack = sc.sVar = Arrays.copyOf(stack, stackSize * 2);
                 }
                 stack[stackSize++] = next;
             }
