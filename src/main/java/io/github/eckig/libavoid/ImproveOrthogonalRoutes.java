@@ -35,9 +35,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -355,6 +353,41 @@ public class ImproveOrthogonalRoutes {
     // nudgeOrthogonalRoutes
     // =========================================================================
 
+    /**
+     * Moves the next region from {@code remaining} to {@code region} (cleared first): the first remaining segment and,
+     * transitively, all segments overlapping a segment of the region. Same order as C++ (orthogonal.cpp,
+     * nudgeOrthogonalRoutes): after adding a segment, the first remaining segment overlapping any region member is
+     * added next (C++ restarts the scan from the beginning). Each segment is compared with each region member at most
+     * once.
+     */
+    static <T> void nextRegion(final List<T> remaining, final List<T> region,
+            final java.util.function.BiPredicate<T, T> overlaps) {
+        region.clear();
+        region.add(remaining.removeFirst());
+        // checked[k]: number of region members remaining[k] is already known not to overlap
+        int[] checked = new int[remaining.size()];
+        int k = 0;
+        while (k < remaining.size()) {
+            final T candidate = remaining.get(k);
+            boolean overlapping = false;
+            for (int r = checked[k]; r < region.size(); r++) {
+                if (overlaps.test(candidate, region.get(r))) {
+                    overlapping = true;
+                    break;
+                }
+            }
+            if (overlapping) {
+                region.add(candidate);
+                remaining.remove(k);
+                System.arraycopy(checked, k + 1, checked, k, remaining.size() - k);
+                k = 0;
+            } else {
+                checked[k] = region.size();
+                k++;
+            }
+        }
+    }
+
     private void nudgeOrthogonalRoutes(int dimension, boolean justUnifying) {
         boolean nudgeFinalSegments = m_router.routingOption(
                 Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes);
@@ -367,35 +400,12 @@ public class ImproveOrthogonalRoutes {
         double reductionSteps = 10.0;
 
         // Do the actual nudging.
-        // Use a LinkedList for O(1) removal during region-building.
-        LinkedList<ShiftSegment> remaining = new LinkedList<>(m_segment_list);
+        List<ShiftSegment> remaining = new ArrayList<>(m_segment_list);
         m_segment_list.clear();
 
         List<ShiftSegment> currentRegion = new ArrayList<>();
         while (!remaining.isEmpty()) {
-            // Take a reference segment and seed the region.
-            currentRegion.clear();
-            currentRegion.add(remaining.removeFirst());
-
-            // Single-pass interval-merge: iterate remaining once, collecting all
-            // segments that overlap *any* segment already in the region.
-            // Repeat until no new segments are added (transitive closure).
-            boolean added = true;
-            while (added) {
-                added = false;
-                ListIterator<ShiftSegment> it = remaining.listIterator();
-                while (it.hasNext()) {
-                    ShiftSegment candidate = it.next();
-                    for (ShiftSegment inRegion : currentRegion) {
-                        if (candidate.overlapsWith(inRegion, dimension)) {
-                            currentRegion.add(candidate);
-                            it.remove();
-                            added = true;
-                            break;
-                        }
-                    }
-                }
-            }
+            nextRegion(remaining, currentRegion, (x, y) -> x.overlapsWith(y, dimension));
 
             if (!justUnifying) {
                 currentRegion = linesort(nudgeFinalSegments, currentRegion,

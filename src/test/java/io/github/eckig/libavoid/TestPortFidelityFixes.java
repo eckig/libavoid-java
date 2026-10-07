@@ -113,6 +113,89 @@ class TestPortFidelityFixes {
         assertTrue(bends <= 4, "bends: " + bends);
     }
 
+    /** Deleting a shape destroys its connection pins, so their vertices leave the graph (C++ ~Obstacle). */
+    @Test
+    void deletingShapeRemovesItsPins() {
+        final Router router = new Router(Router.RouterFlag.OrthogonalRouting);
+        router.setTransactionUse(true);
+        final int before = router.vertices.connsSize();
+        final ShapeRef shape = new ShapeRef(router, new Rectangle(new Point(0, 0), new Point(100, 100)));
+        new ShapeConnectionPin(shape, 1, ShapeConnectionPin.ATTACH_POS_CENTRE, 0, true, 0, ConnDirFlag.ConnDirUp);
+        new ShapeConnectionPin(shape, 1, 1, ShapeConnectionPin.ATTACH_POS_CENTRE, true, 0, ConnDirFlag.ConnDirRight);
+        router.processTransaction();
+        assertEquals(before + 2, router.vertices.connsSize(), "pin vertices");
+
+        router.deleteShape(shape);
+        router.processTransaction();
+        assertEquals(before, router.vertices.connsSize(), "pin vertices left after deleting the shape");
+    }
+
+    /** A shape added and deleted in the same transaction never becomes part of the scene. */
+    @Test
+    void addThenDeleteInSameTransactionDoesNotResurrect() {
+        final Router router = new Router(Router.RouterFlag.OrthogonalRouting);
+        router.setTransactionUse(true);
+        final ShapeRef shape = new ShapeRef(router, new Rectangle(new Point(0, 0), new Point(10, 10)));
+        router.deleteShape(shape);
+        router.processTransaction();
+
+        assertFalse(router.m_obstacles.contains(shape));
+    }
+
+    /** Moving a shape deleted in the same transaction is a programming error (C++ asserts). */
+    @Test
+    void moveAfterDeleteIsRejected() {
+        final Router router = new Router(Router.RouterFlag.OrthogonalRouting);
+        router.setTransactionUse(true);
+        final ShapeRef shape = new ShapeRef(router, new Rectangle(new Point(0, 0), new Point(10, 10)));
+        router.processTransaction();
+        router.deleteShape(shape);
+
+        assertThrows(IllegalStateException.class, () -> router.moveShape(shape, 5, 5));
+    }
+
+    /** Deleted connectors are not kept reachable by the router. */
+    @Test
+    void deletedConnectorIsReleased() {
+        final Router router = new Router(Router.RouterFlag.OrthogonalRouting);
+        final ConnRef conn = new ConnRef(router, new ConnEnd(new Point(0, 0)), new ConnEnd(new Point(100, 100)));
+        router.processTransaction();
+        assertTrue(router.m_conn_reroute_flags.contains(conn));
+
+        router.deleteConnector(conn);
+        router.processTransaction();
+        assertFalse(router.m_conn_reroute_flags.contains(conn), "deleted connector still referenced");
+    }
+
+    /** Cancelling an add also removes the vertices its pins (and a junction's centre pin) already created. */
+    @Test
+    void addThenDeleteLeavesNoPinVertices() {
+        final Router router = new Router(Router.RouterFlag.OrthogonalRouting);
+        router.setTransactionUse(true);
+        final int before = router.vertices.connsSize();
+
+        final ShapeRef shape = new ShapeRef(router, new Rectangle(new Point(0, 0), new Point(100, 100)));
+        new ShapeConnectionPin(shape, 1, ShapeConnectionPin.ATTACH_POS_CENTRE, 0, true, 0, ConnDirFlag.ConnDirUp);
+        router.deleteShape(shape);
+        final JunctionRef junction = new JunctionRef(router, new Point(200, 200));
+        router.deleteJunction(junction);
+        router.processTransaction();
+
+        assertEquals(before, router.vertices.connsSize());
+    }
+
+    /** Moving a junction deleted in the same transaction is rejected like for shapes. */
+    @Test
+    void junctionMoveAfterDeleteIsRejected() {
+        final Router router = new Router(Router.RouterFlag.OrthogonalRouting);
+        router.setTransactionUse(true);
+        final JunctionRef junction = new JunctionRef(router, new Point(0, 0));
+        router.processTransaction();
+        router.deleteJunction(junction);
+
+        assertThrows(IllegalStateException.class, () -> router.moveJunction(junction, new Point(5, 5)));
+    }
+
     private static ConnEnd end(final double[] s, final int side) {
         final double cx = s[0] + s[2] / 2, cy = s[1] + s[3] / 2;
         return switch (side) {

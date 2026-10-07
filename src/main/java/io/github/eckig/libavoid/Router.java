@@ -396,12 +396,19 @@ public class Router {
             return flag;
         }
 
-        void removeConn(ConnRef conn) {
+        boolean contains(ConnRef conn) {
             for (var entry : m_mapping) {
                 if (entry.first == conn) {
-                    entry.second = null;
+                    return true;
                 }
             }
+            return false;
+        }
+
+        void removeConn(ConnRef conn) {
+            // Drop the entry, so deleted connectors are not kept reachable (C++ nulls the pointer, which also
+            // releases the connector as C++ deletes it).
+            m_mapping.removeIf(entry -> entry.first == conn);
         }
 
         void alertConns() {
@@ -665,6 +672,8 @@ public class Router {
                 // Free deleted obstacle.
                 deletedObstacles.add(obstacle.id());
                 m_obstacles.remove(obstacle);
+                // As in C++ (~Obstacle): destroy its connection pins, so their vertices leave the graph.
+                disposePins(obstacle);
             }
         }
 
@@ -778,6 +787,16 @@ public class Router {
         ActionInfo moveInfo = new ActionInfo(ActionType.ShapeMove, shape);
         actionList.remove(moveInfo);
 
+        // Added in the same transaction: the shape never became active, just cancel the add.
+        // (C++ asserts that this does not happen.)
+        if (actionList.remove(new ActionInfo(ActionType.ShapeAdd, shape))) {
+            discardNeverActivated(shape);
+            if (!m_consolidate_actions) {
+                processTransaction();
+            }
+            return;
+        }
+
         // Add the ShapeRemove entry.
         ActionInfo remInfo = new ActionInfo(ActionType.ShapeRemove, shape);
         if (!actionList.contains(remInfo)) {
@@ -800,6 +819,10 @@ public class Router {
      * Move or resize an existing shape within the router scene.
      */
     public void moveShape(ShapeRef shape, Polygon newPoly, boolean first_move) {
+        // A shape deleted in the same transaction must not be moved (C++ asserts this).
+        if (actionList.contains(new ActionInfo(ActionType.ShapeRemove, shape))) {
+            throw new IllegalStateException("Shape " + shape.id() + " was deleted in this transaction");
+        }
         // Check if there's already an Add for this shape
         ActionInfo addInfo = new ActionInfo(ActionType.ShapeAdd, shape);
         int addIdx = actionList.indexOf(addInfo);
@@ -873,6 +896,15 @@ public class Router {
         ActionInfo moveInfo = new ActionInfo(ActionType.JunctionMove, junction);
         actionList.remove(moveInfo);
 
+        // Added in the same transaction: the junction never became active, just cancel the add.
+        if (actionList.remove(new ActionInfo(ActionType.JunctionAdd, junction))) {
+            discardNeverActivated(junction);
+            if (!m_consolidate_actions) {
+                processTransaction();
+            }
+            return;
+        }
+
         // Add the JunctionRemove entry.
         ActionInfo remInfo = new ActionInfo(ActionType.JunctionRemove, junction);
         if (!actionList.contains(remInfo)) {
@@ -888,6 +920,10 @@ public class Router {
      * Move an existing junction within the router scene.
      */
     public void moveJunction(JunctionRef junction, Point newPosition) {
+        // A junction deleted in the same transaction must not be moved (C++ asserts this).
+        if (actionList.contains(new ActionInfo(ActionType.JunctionRemove, junction))) {
+            throw new IllegalStateException("Junction " + junction.id() + " was deleted in this transaction");
+        }
         // Check if there's already an Add for this junction
         ActionInfo addInfo = new ActionInfo(ActionType.JunctionAdd, junction);
         int addIdx = actionList.indexOf(addInfo);
@@ -1915,6 +1951,21 @@ public class Router {
     // -----------------------------------------------------------------------
     // Remove object from queued actions
     // -----------------------------------------------------------------------
+
+    /** Destroys the connection pins of a deleted obstacle, so their vertices leave the graph (C++ ~Obstacle). */
+    private void disposePins(Obstacle obstacle) {
+        for (ShapeConnectionPin pin : new ArrayList<>(obstacle.m_connection_pins)) {
+            pin.disposeWithObstacle();
+            removeObjectFromQueuedActions(pin);
+        }
+        obstacle.m_connection_pins.clear();
+    }
+
+    /** Cleans up an obstacle deleted before its add was processed: its pins already created vertices. */
+    private void discardNeverActivated(Obstacle obstacle) {
+        disposePins(obstacle);
+        removeObjectFromQueuedActions(obstacle);
+    }
 
     void removeObjectFromQueuedActions(Object object) {
         actionList.removeIf(curr -> curr.objPtr == object);

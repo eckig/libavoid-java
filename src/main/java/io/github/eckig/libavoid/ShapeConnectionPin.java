@@ -477,6 +477,18 @@ public class ShapeConnectionPin implements Comparable<ShapeConnectionPin> {
     }
 
     /**
+     * Destroys this pin as part of deleting its shape or junction inside a transaction: like {@link #dispose()},
+     * but without queuing a pin change action (the shape is gone anyway).
+     */
+    void disposeWithObstacle() {
+        while (!m_connend_users.isEmpty()) {
+            ConnEnd connEnd = m_connend_users.iterator().next();
+            connEnd.freeActivePin();
+        }
+        removeFromGraph();
+    }
+
+    /**
      * Removes this pin's vertex from the visibility graph and vertex list.
      * Called during pin destruction / dispose.
      * Corresponds to the vertex-cleanup part of the C++ destructor.
