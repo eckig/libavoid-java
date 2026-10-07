@@ -1261,32 +1261,9 @@ public class Router {
             }
         }
 
-        // Retry failed connectors with shapeBufferDistance=0 so that routes
-        // through tight gaps (smaller than the buffer) still get a valid
-        // orthogonal path instead of a useless straight-line fallback.
-        List<ConnRef> failedConns = new ArrayList<>();
-        for (ConnRef conn : reroutedConns) {
-            if (conn.m_needs_reroute_flag) {
-                failedConns.add(conn);
-            }
-        }
-        if (!failedConns.isEmpty()) {
-            double originalBuffer = m_routing_parameters[RoutingParameter.shapeBufferDistance.ordinal()];
-            m_routing_parameters[RoutingParameter.shapeBufferDistance.ordinal()] = 0;
-            m_static_orthogonal_graph_invalidated = true;
-            regenerateStaticBuiltGraph();
-
-            for (ConnRef conn : failedConns) {
-                conn.m_needs_reroute_flag = true;
-                conn.generatePath();
-            }
-
-            // Restore original buffer and rebuild the graph so that all
-            // subsequent steps (crossing detection, nudging) use the correct buffer.
-            m_routing_parameters[RoutingParameter.shapeBufferDistance.ordinal()] = originalBuffer;
-            m_static_orthogonal_graph_invalidated = true;
-            regenerateStaticBuiltGraph();
-        }
+        // Java extension (not in C++): retry failed connectors with shapeBufferDistance=0, so that routes through
+        // gaps smaller than the buffer still get an orthogonal path instead of a straight-line fallback.
+        retryFailedRoutesWithoutShapeBuffer(reroutedConns);
 
         // Find and reroute crossing connectors if crossing penalties are set.
         improveCrossings();
@@ -1295,8 +1272,7 @@ public class Router {
         ImproveOrthogonalRoutes improver = new ImproveOrthogonalRoutes(this);
         improver.execute();
 
-        // Post-nudging: enforce that connectors with a ConnDirLeft destination
-        // arrive at the destination from the left (horizontal last segment).
+        // Java extension (not in C++): connectors with a ConnDirLeft destination arrive from the left.
         for (ConnRef conn : reroutedConns) {
             conn.enforceDestinationApproachDirection();
         }
@@ -1305,6 +1281,39 @@ public class Router {
         for (ConnRef conn : reroutedConns) {
             conn.m_needs_repaint = true;
             conn.performCallback();
+        }
+    }
+
+    /**
+     * Routes failed connectors again with a shapeBufferDistance of 0 (such routes may touch shapes). Costs two extra
+     * builds of the orthogonal visibility graph, only if a connector failed.
+     */
+    private void retryFailedRoutesWithoutShapeBuffer(List<ConnRef> reroutedConns) {
+        List<ConnRef> failedConns = new ArrayList<>();
+        for (ConnRef conn : reroutedConns) {
+            if (conn.m_needs_reroute_flag) {
+                failedConns.add(conn);
+            }
+        }
+        if (failedConns.isEmpty()) {
+            return;
+        }
+        final int buffer = RoutingParameter.shapeBufferDistance.ordinal();
+        final double originalBuffer = m_routing_parameters[buffer];
+        try {
+            m_routing_parameters[buffer] = 0;
+            m_static_orthogonal_graph_invalidated = true;
+            regenerateStaticBuiltGraph();
+
+            for (ConnRef conn : failedConns) {
+                conn.m_needs_reroute_flag = true;
+                conn.generatePath();
+            }
+        } finally {
+            // Restore the buffer and rebuild the graph, so all subsequent steps (crossing detection, nudging) use it.
+            m_routing_parameters[buffer] = originalBuffer;
+            m_static_orthogonal_graph_invalidated = true;
+            regenerateStaticBuiltGraph();
         }
     }
 

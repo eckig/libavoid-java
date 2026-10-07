@@ -989,7 +989,7 @@ public class ConnRef {
         enforceLastSegmentFromLeft(display.ps, minApproach);
     }
 
-    private static void enforceLastSegmentFromLeft(List<Point> pts, double minApproach) {
+    static void enforceLastSegmentFromLeft(List<Point> pts, double minApproach) {
         if (pts.size() < 2) {
             return;
         }
@@ -1021,8 +1021,9 @@ public class ConnRef {
             // Vertical last segment: prev(x, y1) → dst(x, y2).
             // Check whether the segment before prev is horizontal (safe to shift prev.x)
             // or vertical (must insert an extra bend point instead).
-            boolean prevSegmentIsHorizontal = pts.size() < 3
-                    || pts.get(pts.size() - 3).y == prev.y;
+            // On a 2-point route prev is the source end point, which must not move: insert two points instead.
+            boolean prevSegmentIsHorizontal = pts.size() >= 3
+                    && pts.get(pts.size() - 3).y == prev.y;
 
             if (prevSegmentIsHorizontal) {
                 // Shift prev.x to approachX and insert one bend point:
