@@ -837,8 +837,9 @@ public class Router {
             // The shape already has a queued move, so use that shape position.
             newPoly = actionList.get(foundIdx).newPoly;
         } else {
-            // Just use the existing position.
-            newPoly = shape.polygon();
+            // Just use the existing position (a copy: the shape must keep its position until the
+            // transaction is processed).
+            newPoly = new Polygon(shape.polygon());
         }
         newPoly.translate(xDiff, yDiff);
 
@@ -1046,16 +1047,32 @@ public class Router {
     }
 
     /**
-     * Sets routing options using integer option ordinal.
-     * This overload supports tests that pass C++ enum ordinals directly.
+     * C++ RoutingOption values (router.h) by their ordinal; {@code null} for the hyperedge options, which are not
+     * ported. The Java enum has a different order, so its ordinals must not be used here.
+     */
+    private static final RoutingOption[] CPP_ROUTING_OPTIONS = {
+            RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes,   // 0
+            null,                                                     // 1 improveHyperedgeRoutesMovingJunctions
+            RoutingOption.penaliseOrthogonalSharedPathsAtConnEnds,    // 2
+            RoutingOption.nudgeOrthogonalTouchingColinearSegments,    // 3
+            RoutingOption.performUnifyingNudgingPreprocessingStep,    // 4
+            null,                                                     // 5 improveHyperedgeRoutesMovingAddingAndDeletingJunctions
+            RoutingOption.nudgeSharedPathsWithCommonEndPoint,         // 6
+    };
+
+    /**
+     * Sets a routing option by its C++ enum ordinal (router.h), e.g. for tests ported from C++. The hyperedge options
+     * (1 and 5) are not ported and ignored.
+     *
+     * @throws IllegalArgumentException if the ordinal is not a C++ routing option
      */
     public void setRoutingOption(int optionOrdinal, boolean value) {
-        RoutingOption[] options = RoutingOption.values();
-        for (RoutingOption o : options) {
-            if (o.ordinal() == optionOrdinal) {
-                setRoutingOption(o, value);
-                return;
-            }
+        if (optionOrdinal < 0 || optionOrdinal >= CPP_ROUTING_OPTIONS.length) {
+            throw new IllegalArgumentException("Unknown C++ routing option: " + optionOrdinal);
+        }
+        final RoutingOption option = CPP_ROUTING_OPTIONS[optionOrdinal];
+        if (option != null) {
+            setRoutingOption(option, value);
         }
     }
 

@@ -392,8 +392,8 @@ public class MakePath {
         }
         endPoints.add(tar.point);
 
-        // Heap of pending nodes — we use lazy deletion to avoid O(N) PriorityQueue.remove().
-        // Nodes with a stale generation (< the generation recorded on the vertex) are skipped.
+        // Heap of pending nodes — we use lazy deletion to avoid O(N) PriorityQueue.remove():
+        // replaced nodes are marked stale and skipped when polled.
         PriorityQueue<ANode> pending = new PriorityQueue<>(1000, ANODE_CMP);
 
         // Dirty-vertex list: only vertices actually touched during this search need cleanup.
@@ -454,6 +454,7 @@ public class MakePath {
                     pending.add(node);
                     node.inf.aStarPendingNodes.add(node);
                 }
+                markDirty(node.inf, dirtyVertices);
 
                 rIndx++;
                 last = curr;
@@ -463,6 +464,7 @@ public class MakePath {
             if (start.pathNext != null) {
                 bestNode = new ANode(start.pathNext, timestamp++);
                 bestNode.inf.aStarDoneNodes.add(bestNode);
+                markDirty(bestNode.inf, dirtyVertices);
             }
 
             // Create start node
@@ -478,25 +480,19 @@ public class MakePath {
 
         tar.pathNext = null;
 
-        // Each vertex gets an aStarGeneration counter. When we "add" a node to the
-        // done set we increment the generation on the vertex. Stale nodes popped from
-        // the heap (generation mismatch) are simply skipped — this replaces the O(N)
-        // pending.remove() calls with O(log N) heap operations (lazy deletion).
-        //
-        // aStarBestG tracks the best known g-cost for a vertex so we can decide
-        // whether a newly discovered path is an improvement without scanning lists.
-
         while (!pending.isEmpty()) {
             bestNode = pending.poll();
             VertInf bestNodeInf = bestNode.inf;
 
-            // Lazy-deletion: skip nodes that have already been superseded.
-            if (bestNode.timeStamp < bestNodeInf.aStarSettledTimestamp) {
+            // Lazy deletion: skip nodes that were replaced by a cheaper one (see below).
+            if (bestNode.stale) {
                 continue;
             }
 
-            // Mark this vertex as settled (done).
-            bestNodeInf.aStarSettledTimestamp = bestNode.timeStamp;
+            // As in C++: remove the node from the vertex's pending list and add it to the done set.
+            // (Several nodes per vertex are kept, one per incoming parent, because the cost of
+            // bends depends on the direction the vertex is reached from.)
+            bestNodeInf.aStarPendingNodes.remove(bestNode);
             bestNodeInf.aStarDoneNodes.add(bestNode);
             // Track vertices we touch so we only clean those up later.
             if (!bestNodeInf.aStarVisited) {
@@ -633,31 +629,27 @@ public class MakePath {
                 }
                 double nodeF = nodeG + nodeH;
 
-                // Lazy-deletion approach: only add a new node if it improves upon
-                // the best g-cost we have seen for this vertex so far.
-                // We skip the old O(N) pending-list scan entirely.
-                //
-                // For correctness with the parent-based duplicate check from the
-                // original code we keep aStarPendingNodes as a small per-vertex list,
-                // but we only scan it to decide whether to add (not to remove).
+                // As in C++: one node per (vertex, parent vertex). A cheaper path replaces the pending
+                // node with the same parent vertex; a done node with the same parent vertex blocks it.
                 boolean bNodeFound = false;
-                for (ANode pendingNode : nodeInf.aStarPendingNodes) {
+                final List<ANode> pendingNodes = nodeInf.aStarPendingNodes;
+                for (int pi = 0, pn = pendingNodes.size(); pi < pn; pi++) {
+                    final ANode pendingNode = pendingNodes.get(pi);
                     if ((pendingNode.prevNode == bestNode) ||
                             (pendingNode.prevNode != null &&
                              pendingNode.prevNode.inf == bestNodeInf)) {
                         if (nodeG < pendingNode.g) {
-                            // Instead of removing the old node from the heap (O(N)),
-                            // we update it in-place and re-insert. The old entry is
-                            // now stale — it will be skipped by lazy-deletion when popped.
-                            pendingNode.g = nodeG;
-                            pendingNode.h = nodeH;
-                            pendingNode.f = nodeF;
-                            pendingNode.prevNode = bestNode;
-                            pendingNode.timeStamp = timestamp++;
-                            // Increment the settled-timestamp threshold so any earlier
-                            // copy already in the heap gets skipped on pop.
-                            nodeInf.aStarSettledTimestamp = pendingNode.timeStamp - 1;
-                            pending.add(pendingNode);
+                            // C++ replaces the node and re-heapifies. Changing a node inside the
+                            // PriorityQueue would break its order, so the old node is marked stale
+                            // (skipped when polled) and a new node takes its place.
+                            pendingNode.stale = true;
+                            final ANode node = new ANode(nodeInf, timestamp++);
+                            node.prevNode = bestNode;
+                            node.g = nodeG;
+                            node.h = nodeH;
+                            node.f = nodeF;
+                            pendingNodes.set(pi, node);
+                            pending.add(node);
                         }
                         bNodeFound = true;
                         break;
@@ -666,11 +658,12 @@ public class MakePath {
 
                 if (!bNodeFound) {
                     // Check done set (same parent check as original).
+                    // As in C++: the candidate (parent bestNode) is a duplicate if a done node of
+                    // this vertex has the same parent vertex.
                     for (ANode doneNode : nodeInf.aStarDoneNodes) {
                         if (doneNode.prevNode != null &&
                                 ((bestNode == doneNode.prevNode) ||
-                                 (bestNode.prevNode != null &&
-                                  bestNode.prevNode.inf == doneNode.prevNode.inf))) {
+                                 (bestNodeInf == doneNode.prevNode.inf))) {
                             bNodeFound = true;
                             break;
                         }
@@ -699,7 +692,14 @@ public class MakePath {
             k.aStarDoneNodes.clear();
             k.aStarPendingNodes.clear();
             k.aStarVisited = false;
-            k.aStarSettledTimestamp = 0;
+        }
+    }
+
+    /** Records a vertex whose A* lists must be cleared after the search. */
+    private static void markDirty(final VertInf pInf, final List<VertInf> pDirtyVertices) {
+        if (!pInf.aStarVisited) {
+            pInf.aStarVisited = true;
+            pDirtyVertices.add(pInf);
         }
     }
 

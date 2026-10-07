@@ -33,6 +33,8 @@ public class ANode {
     public double f;  // f = g + h
     public ANode prevNode;
     public int timeStamp;
+    /** Set when this node was replaced by a cheaper one; stale nodes are skipped when polled. */
+    public boolean stale;
 
     public ANode(VertInf vinf, int time) {
         this.inf = vinf;

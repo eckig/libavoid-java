@@ -57,7 +57,8 @@ public abstract class Obstacle {
      */
     protected Obstacle(Router router, Polygon poly, int id) {
         m_router = router;
-        m_id = (id != 0) ? id : router.assignId();
+        // As in C++: also records a given ID, so automatically assigned IDs never repeat it.
+        m_id = router.assignId(id);
         m_polygon = new Polygon(poly);
         m_polygon._id = m_id;
         m_first_vert = null;
