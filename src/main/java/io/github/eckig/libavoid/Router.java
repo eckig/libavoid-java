@@ -41,6 +41,16 @@ import java.util.Set;
  * or layout you have open in your application.
  *
  * Corresponds to router.h/router.cpp in C++.
+ *
+ * <h2>Differences from the C++ original</h2>
+ * <ul>
+ * <li><b>Not ported:</b> hyperedges (HyperedgeRerouter, hyperedge improvement options), clusters (ClusterRef,
+ * {@link RoutingParameter#clusterCrossingPenalty} has no effect), transaction progress reporting and cancelling
+ * (C++ performContinuationCheck/abort), and the debug handler.</li>
+ * <li><b>Java extensions:</b> failed connectors and connectors with a large detour are routed again without
+ * shape buffer, connectors without any path get an orthogonal fallback route, and destinations that only allow
+ * {@link ConnDirFlag#ConnDirLeft} are approached from the left (see ConnRef and rerouteAndCallbackConnectors).</li>
+ * </ul>
  */
 public class Router {
 
@@ -102,9 +112,8 @@ public class Router {
         /**
          * This penalty is applied whenever a connector path crosses a cluster boundary.
          * <p>
-         * <b>Note</b>
-         * This penalty is still experimental! It is not recommended for normal use.
-         * This penalty is very slow.
+         * <b>Not ported:</b> clusters are not supported by this Java port, so this penalty is accepted but has no
+         * effect.
          */
         clusterCrossingPenalty,
         /**
@@ -480,7 +489,8 @@ public class Router {
 
     ConnRerouteFlagDelegate m_conn_reroute_flags;
 
-    // Progress tracking and transaction cancelling.
+    // Progress tracking and transaction cancelling: not ported, never set to true (C++ sets it via
+    // performContinuationCheck). Kept so the ported loops stay close to C++.
     private boolean m_abort_transaction;
 
     // Overall modes:

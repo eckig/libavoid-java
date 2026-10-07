@@ -79,17 +79,20 @@ public class Point implements Comparable<Point> {
         return x == rhs.x && y == rhs.y;
     }
 
+    // hashCode and compareTo treat -0.0 like 0.0 (adding 0.0 turns -0.0 into 0.0), consistent with equals (==),
+    // as in C++ (operator== and operator< compare with == and <).
+
     @Override
     public int hashCode() {
-        return Objects.hash(Double.doubleToLongBits(x), Double.doubleToLongBits(y));
+        return Objects.hash(Double.doubleToLongBits(x + 0.0), Double.doubleToLongBits(y + 0.0));
     }
 
     @Override
     public int compareTo(Point rhs) {
         if (x == rhs.x) {
-            return Double.compare(y, rhs.y);
+            return Double.compare(y + 0.0, rhs.y + 0.0);
         }
-        return Double.compare(x, rhs.x);
+        return Double.compare(x + 0.0, rhs.x + 0.0);
     }
 
     /** Returns the x or y value of the point, given the dimension. */

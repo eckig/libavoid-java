@@ -228,4 +228,27 @@ class TestBlockSplitPath {
             }
         }
     }
+
+    /**
+     * Unifying nudging adds constraints between solver passes and calls reset() (C++ builds a new solver per pass):
+     * after reset() the solver must be wired up like a new solver, including the constraints added in between.
+     */
+    @Test
+    void resetIncludesConstraintsAddedAfterConstruction() {
+        final Variable a = new Variable(Variable.Id.freeSegmentID, 0, Variable.Weight.strongWeight);
+        final Variable b = new Variable(Variable.Id.freeSegmentID, 10, Variable.Weight.strongWeight);
+        final Variable c = new Variable(Variable.Id.freeSegmentID, 20, Variable.Weight.strongWeight);
+        final List<Variable> vs = new ArrayList<>(List.of(a, b, c));
+        final List<Constraint> cs = new ArrayList<>(List.of(new Constraint(a, b, 5)));
+        final IncSolver solver = new IncSolver(vs, cs);
+        solver.solve();
+
+        final Constraint added = new Constraint(b, c, 0, true);
+        cs.add(added);
+        solver.reset();
+
+        assertTrue(b.out.contains(added) && c.in.contains(added), "added constraint not wired");
+        solver.solve();
+        assertEquals(b.finalPosition, c.finalPosition, 1e-6);
+    }
 }

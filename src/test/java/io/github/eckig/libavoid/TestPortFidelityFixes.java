@@ -196,6 +196,18 @@ class TestPortFidelityFixes {
         assertThrows(IllegalStateException.class, () -> router.moveJunction(junction, new Point(5, 5)));
     }
 
+    /** -0.0 and 0.0 are the same coordinate: equals, hashCode and compareTo must agree (C++ compares with ==). */
+    @Test
+    void negativeZeroIsSameCoordinate() {
+        final Point a = new Point(0.0, -0.0);
+        final Point b = new Point(-0.0, 0.0);
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertEquals(0, a.compareTo(b));
+        assertEquals(1, new HashSet<>(List.of(a, b)).size());
+        assertEquals(1, new java.util.TreeSet<>(List.of(a, b)).size());
+    }
+
     private static ConnEnd end(final double[] s, final int side) {
         final double cx = s[0] + s[2] / 2, cy = s[1] + s[3] / 2;
         return switch (side) {

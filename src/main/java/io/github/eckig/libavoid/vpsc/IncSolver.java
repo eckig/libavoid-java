@@ -93,8 +93,8 @@ public class IncSolver {
      * Resets the solver for another solve pass over the same variable and
      * constraint lists, without allocating new objects.
      *
-     * Only the constraint gaps may have changed between iterations (as done
-     * by the nudgeOrthogonalRoutes do/while loop).  Everything else —
+     * The constraint gaps and the constraint list itself may have changed
+     * between iterations (as done by the nudgeOrthogonalRoutes do/while loop).  Everything else —
      * variables, constraints, their graph wiring — stays structurally
      * identical, so we only need to:
      *  1. Re-clear and re-wire in/out/activeIn/activeOut on every variable.
@@ -103,6 +103,9 @@ public class IncSolver {
      *  4. Refill the inactive lists from cs.
      */
     public void reset() {
+        // The constraint list may have changed (unifying nudging adds and removes constraints between passes;
+        // C++ creates a new solver per pass), so take the current size.
+        m = cs.size();
         needsScaling = false;
         for (int i = 0; i < n; i++) {
             Variable v = vs.get(i);
