@@ -23,7 +23,6 @@
 
 package io.github.eckig.libavoid;
 
-import java.util.Objects;
 
 /**
  * The Point class defines a point in the plane.
@@ -84,7 +83,7 @@ public class Point implements Comparable<Point> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(Double.doubleToLongBits(x + 0.0), Double.doubleToLongBits(y + 0.0));
+        return 31 * (31 + Double.hashCode(x + 0.0)) + Double.hashCode(y + 0.0);
     }
 
     @Override

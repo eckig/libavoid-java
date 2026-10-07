@@ -131,6 +131,13 @@ public class ImproveOrthogonalRoutes {
             connRoutes.add(new Polygon(connRef.displayRoute()));
         }
 
+        // Bounding boxes of the routes: routes whose boxes are disjoint cannot touch, so splitting and crossing
+        // counting can skip them (splitting only inserts points on existing segments, the boxes stay valid).
+        final double[][] boxes = new double[connRoutes.size()][];
+        for (int i = 0; i < connRoutes.size(); i++) {
+            boxes[i] = bounds(connRoutes.get(i));
+        }
+
         // Do segment splitting.
         // Use triangular iteration (ind2 = ind1+1) and split both ways per pair,
         // which is equivalent to the original N×N loop but with half the calls.
@@ -142,6 +149,9 @@ public class ImproveOrthogonalRoutes {
             for (int ind2 = ind1 + 1; ind2 < connRefs.size(); ++ind2) {
                 ConnRef conn2 = connRefs.get(ind2);
                 if (conn2.routingType() != ConnType.Orthogonal) {
+                    continue;
+                }
+                if (skipDisjointPairs && disjoint(boxes[ind1], boxes[ind2])) {
                     continue;
                 }
                 Polygon route = connRoutes.get(ind1);
@@ -166,6 +176,9 @@ public class ImproveOrthogonalRoutes {
             for (int ind2 = ind1 + 1; ind2 < connRefs.size(); ++ind2) {
                 ConnRef conn2 = connRefs.get(ind2);
                 if (conn2.routingType() != ConnType.Orthogonal) {
+                    continue;
+                }
+                if (skipDisjointPairs && disjoint(boxes[ind1], boxes[ind2])) {
                     continue;
                 }
                 Polygon route = connRoutes.get(ind1);
@@ -194,6 +207,26 @@ public class ImproveOrthogonalRoutes {
     // =========================================================================
     // buildOrthogonalNudgingSegments - static helper
     // =========================================================================
+
+    /** Skip pairs of routes with disjoint bounding boxes (only switched off by tests to compare the results). */
+    static boolean skipDisjointPairs = true;
+
+    private static double[] bounds(Polygon route) {
+        double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
+        for (Point p : route.ps) {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+        }
+        return new double[] {minX, minY, maxX, maxY};
+    }
+
+    /** True if the (closed) boxes do not even touch. */
+    static boolean disjoint(double[] a, double[] b) {
+        return a[2] < b[0] || b[2] < a[0] || a[3] < b[1] || b[3] < a[1];
+    }
 
     private static boolean insideRectBounds(Point point, Point rectMin, Point rectMax) {
         Point zero = new Point(0, 0);

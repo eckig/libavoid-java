@@ -77,6 +77,10 @@ class ConnectorCrossings {
     /**
      * Works out if the segment conn[cIndex-1]--conn[cIndex] really crosses poly.
      */
+    // scratch arrays of countForSegment, reused across calls
+    private Point[] m_c_path = new Point[16];
+    private Point[] m_p_path = new Point[16];
+
     void countForSegment(int cIndex, boolean finalSegment) {
         clear();
 
@@ -104,8 +108,12 @@ class ConnectorCrossings {
         Point a2 = conn.ps.get(cIndex);
 
         int max_path_size = Math.min(poly_size, conn.size());
-        Point[] c_path = new Point[max_path_size];
-        Point[] p_path = new Point[max_path_size];
+        if (m_c_path.length < max_path_size) {
+            m_c_path = new Point[Math.max(max_path_size, m_c_path.length * 2)];
+            m_p_path = new Point[m_c_path.length];
+        }
+        Point[] c_path = m_c_path;
+        Point[] p_path = m_p_path;
 
         for (int j = (polyIsConn ? 1 : 0); j < poly_size; ++j) {
             Point b1 = poly.ps.get(((j - 1) + poly_size) % poly_size);
