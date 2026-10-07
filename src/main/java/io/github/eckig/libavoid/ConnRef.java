@@ -46,6 +46,14 @@ public class ConnRef {
     ConnType m_type;
     boolean[] m_reroute_flag_ptr;   // pointer into ConnRerouteFlagDelegate
     boolean m_needs_reroute_flag;
+    /**
+     * Java extension: set by generatePath if the orthogonal route is a large detour (more than 3x the direct distance),
+     * typically because the shape buffer closes the gap between nodes that are close together. The router then tries
+     * this connector again without shape buffer.
+     */
+    boolean m_detour;
+    /** Java extension: set by generatePath if no path was found and an orthogonal fallback route was built. */
+    private boolean m_fallback;
     boolean m_false_path;
     boolean m_needs_repaint;
     boolean m_active;
@@ -324,6 +332,15 @@ public class ConnRef {
      * Returns the raw route (debug version, not post-processed).
      * Corresponds to ConnRef::route().
      */
+    /**
+     * Restores a route computed earlier in the same transaction (see Router.retryWithoutShapeBuffer).
+     */
+    void restoreRoute(List<Point> pRoute) {
+        freeRoutes();
+        m_route.ps = new ArrayList<>(pRoute);
+        m_needs_reroute_flag = false;
+    }
+
     public Polygon route() {
         return m_route;
     }
@@ -742,6 +759,8 @@ public class ConnRef {
 
         m_false_path = false;
         m_needs_reroute_flag = false;
+        m_detour = false;
+        m_fallback = false;
 
         m_start_vert = m_src_vert;
 
@@ -786,7 +805,7 @@ public class ConnRef {
 
         for (int i = 1; i < vertices.size(); ++i) {
             VertInf vertex = vertices.get(i);
-            // vertex may be null for synthetic fallback bend points.
+            // Fallback routes repeat the source vertex for their synthetic bend points.
             assert vertex == null || vertex.pathNext == null ||
                 (!vertex.pathNext.point.equals(vertex.point)) || vertex.pathNext.id.isConnPt() ||
                 vertex.id.isConnPt() ||
@@ -797,11 +816,12 @@ public class ConnRef {
         // and end of path.
         int pathBegin = 0;
         int pathEnd = path.size();
-        if (path.size() > 2 && isDummyAtEnd.first) {
+        // A synthetic fallback route has no pin vertices to clip to.
+        if (!m_fallback && path.size() > 2 && isDummyAtEnd.first) {
             pathBegin = 1;
             m_src_connend.usePinVertex(vertices.get(1));
         }
-        if (path.size() > 2 && isDummyAtEnd.second) {
+        if (!m_fallback && path.size() > 2 && isDummyAtEnd.second) {
             pathEnd = path.size() - 1;
             m_dst_connend.usePinVertex(vertices.get(vertices.size() - 2));
         }
@@ -889,8 +909,9 @@ public class ConnRef {
             m_needs_reroute_flag = true;
 
             if (m_type == ConnType.Orthogonal) {
-                // For orthogonal routing, build an L-shaped fallback path so the
-                // connector at least looks reasonable instead of a diagonal line.
+                // Java extension: for orthogonal routing, build an orthogonal fallback path so the
+                // connector at least looks reasonable instead of a diagonal line (C++).
+                m_fallback = true;
                 buildOrthogonalFallbackPath(path, vertices, tar);
                 return;
             }
@@ -901,32 +922,18 @@ public class ConnRef {
         }
 
         if (m_type == ConnType.Orthogonal && pathlen >= 2) {
-            // Fallback check: if the found path detours away from the destination
-            // (e.g. because shapeBufferDistance causes routing boxes to overlap and
-            // block the direct gap), replace it with a simple L-shaped path.
-            // We detect a detour by comparing the path's total Manhattan length
-            // against the direct src→dst Manhattan distance.
-            double directDist = Math.abs(tar.point.x - m_src_vert.point.x)
+            // Java extension: detect large detours (more than 3x the direct distance), typically because the shape
+            // buffer closes the gap between nodes that are close together. The route is kept, the router tries this
+            // connector again without shape buffer (see Router.retryWithoutShapeBuffer).
+            final double directDist = Math.abs(tar.point.x - m_src_vert.point.x)
                     + Math.abs(tar.point.y - m_src_vert.point.y);
             if (directDist > 0) {
-                // Collect path in forward order to measure total Manhattan length.
-                List<VertInf> chain = new ArrayList<>();
-                for (VertInf curr = tar; curr != m_src_vert; curr = curr.pathNext) {
-                    chain.addFirst(curr);
-                }
-                chain.addFirst(m_src_vert);
                 double pathDist = 0;
-                for (int k = 1; k < chain.size(); k++) {
-                    pathDist += Math.abs(chain.get(k).point.x - chain.get(k - 1).point.x)
-                            + Math.abs(chain.get(k).point.y - chain.get(k - 1).point.y);
+                for (VertInf curr = tar; curr != m_src_vert; curr = curr.pathNext) {
+                    pathDist += Math.abs(curr.point.x - curr.pathNext.point.x)
+                            + Math.abs(curr.point.y - curr.pathNext.point.y);
                 }
-                // If the path is more than 3x the direct distance, it is a detour.
-                if (pathDist > 3.0 * directDist) {
-                    path.clear();
-                    vertices.clear();
-                    buildOrthogonalFallbackPath(path, vertices, tar);
-                    return;
-                }
+                m_detour = pathDist > 3.0 * directDist;
             }
         }
 
@@ -1056,34 +1063,86 @@ public class ConnRef {
     }
 
     /**
-     * Builds a simple L-shaped (two-segment) orthogonal fallback path from
-     * m_src_vert to tar. Used when no valid path is found or when the found
-     * path is a detour (e.g. routing boxes overlap due to shapeBufferDistance).
-     *
-     * The bend point is placed at (src.x, dst.y) so the connector goes
-     * horizontally first, then vertically.
+     * Builds an orthogonal fallback path from m_src_vert to tar, used when no path was found. It does not avoid
+     * obstacles, but it is always orthogonal and leaves/approaches the end points in an allowed direction where
+     * possible. All points of the path are synthetic except the end points; the vertex list only holds the end
+     * vertices at both ends (the bends get the source vertex, they are not used for pin handling).
      */
     private void buildOrthogonalFallbackPath(List<Point> path, List<VertInf> vertices, VertInf tar) {
-        Point srcPoint = new Point(m_src_vert.point);
+        final Point src = m_src_vert.point;
+        final Point dst = tar.point;
+        final double approach = Math.max(1, m_router.routingParameter(Router.RoutingParameter.shapeBufferDistance));
+        final List<Point> bends = fallbackBends(src, m_src_vert.visDirections, dst, tar.visDirections, approach);
+
+        final Point srcPoint = new Point(src);
         srcPoint.id = m_src_vert.id.objID;
         srcPoint.vn = m_src_vert.id.vn;
-        Point dstPoint = new Point(tar.point);
+        path.add(srcPoint);
+        vertices.add(m_src_vert);
+        for (Point bend : bends) {
+            bend.id = 0;
+            bend.vn = Point.kUnassignedVertexNumber;
+            path.add(bend);
+            vertices.add(m_src_vert);
+        }
+        final Point dstPoint = new Point(dst);
         dstPoint.id = tar.id.objID;
         dstPoint.vn = tar.id.vn;
-
-        // Place the bend so the last segment always arrives at the destination
-        // from the left (penultimate point x < dst.x).
-        double bendX = Math.min(srcPoint.x, dstPoint.x - 1);
-        Point midPoint = new Point(bendX, dstPoint.y);
-        midPoint.id = 0;
-        midPoint.vn = Point.kUnassignedVertexNumber;
-
-        path.add(srcPoint);
-        path.add(midPoint);
         path.add(dstPoint);
-        vertices.add(m_src_vert);
-        vertices.add(null);
         vertices.add(tar);
+    }
+
+    /**
+     * Bend points of an orthogonal fallback route: leave src in an allowed direction, approach dst from an allowed
+     * direction (ConnDir flags, 0 or ConnDirAll = any), each with at least {@code approach} distance.
+     */
+    static List<Point> fallbackBends(Point src, int srcDirs, Point dst, int dstDirs, double approach) {
+        // direction the route leaves src / arrives at dst (as unit vector), preferring horizontal
+        final int[] out = direction(srcDirs, dst.x - src.x, dst.y - src.y);
+        final int[] in = direction(dstDirs, src.x - dst.x, src.y - dst.y); // pointing away from dst
+        final Point a = new Point(src.x + out[0] * approach, src.y + out[1] * approach);
+        final Point b = new Point(dst.x + in[0] * approach, dst.y + in[1] * approach);
+
+        final List<Point> pts = new ArrayList<>();
+        pts.add(a);
+        if (a.x != b.x && a.y != b.y) {
+            // connect a and b with one bend, choosing the corner that keeps the first/last segment straight
+            final boolean outHorizontal = out[1] == 0;
+            final boolean inHorizontal = in[1] == 0;
+            if (outHorizontal && inHorizontal) {
+                final double mx = (a.x + b.x) / 2;
+                pts.add(new Point(mx, a.y));
+                pts.add(new Point(mx, b.y));
+            } else if (!outHorizontal && !inHorizontal) {
+                final double my = (a.y + b.y) / 2;
+                pts.add(new Point(a.x, my));
+                pts.add(new Point(b.x, my));
+            } else if (outHorizontal) {
+                pts.add(new Point(b.x, a.y));
+            } else {
+                pts.add(new Point(a.x, b.y));
+            }
+        }
+        pts.add(b);
+        return pts;
+    }
+
+    /** Unit vector of an allowed direction, preferring the one pointing towards (dx, dy). */
+    private static int[] direction(int dirs, double dx, double dy) {
+        if (dirs == ConnDirFlag.ConnDirNone) {
+            dirs = ConnDirFlag.ConnDirAll;
+        }
+        final int[][] candidates = Math.abs(dx) >= Math.abs(dy)
+                ? new int[][] {{dx >= 0 ? 1 : -1, 0}, {0, dy >= 0 ? 1 : -1}, {0, dy >= 0 ? -1 : 1}, {dx >= 0 ? -1 : 1, 0}}
+                : new int[][] {{0, dy >= 0 ? 1 : -1}, {dx >= 0 ? 1 : -1, 0}, {dx >= 0 ? -1 : 1, 0}, {0, dy >= 0 ? -1 : 1}};
+        for (int[] c : candidates) {
+            final int flag = c[0] > 0 ? ConnDirFlag.ConnDirRight : c[0] < 0 ? ConnDirFlag.ConnDirLeft
+                    : c[1] > 0 ? ConnDirFlag.ConnDirDown : ConnDirFlag.ConnDirUp;
+            if ((dirs & flag) != 0) {
+                return c;
+            }
+        }
+        return candidates[0];
     }
 
     // -----------------------------------------------------------------------

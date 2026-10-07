@@ -1261,9 +1261,9 @@ public class Router {
             }
         }
 
-        // Java extension (not in C++): retry failed connectors with shapeBufferDistance=0, so that routes through
-        // gaps smaller than the buffer still get an orthogonal path instead of a straight-line fallback.
-        retryFailedRoutesWithoutShapeBuffer(reroutedConns);
+        // Java extension (not in C++): retry failed and detoured connectors with shapeBufferDistance=0, so that
+        // routes through gaps smaller than the buffer (e.g. between close nodes) still get a short orthogonal path.
+        retryWithoutShapeBuffer(reroutedConns);
 
         // Find and reroute crossing connectors if crossing penalties are set.
         improveCrossings();
@@ -1285,17 +1285,20 @@ public class Router {
     }
 
     /**
-     * Routes failed connectors again with a shapeBufferDistance of 0 (such routes may touch shapes). Costs two extra
-     * builds of the orthogonal visibility graph, only if a connector failed.
+     * Java extension (not in C++): routes failed connectors and connectors with a large detour (see
+     * {@link ConnRef#m_detour}) again with a shapeBufferDistance of 0, so that routes through gaps smaller than the
+     * buffer (e.g. between nodes close together) get a short orthogonal path that still avoids the shapes, but may
+     * touch them. A detoured connector keeps its original route unless the new one is shorter. Costs two extra builds
+     * of the orthogonal visibility graph, only if a connector failed or detoured.
      */
-    private void retryFailedRoutesWithoutShapeBuffer(List<ConnRef> reroutedConns) {
-        List<ConnRef> failedConns = new ArrayList<>();
+    private void retryWithoutShapeBuffer(List<ConnRef> reroutedConns) {
+        List<ConnRef> retryConns = new ArrayList<>();
         for (ConnRef conn : reroutedConns) {
-            if (conn.m_needs_reroute_flag) {
-                failedConns.add(conn);
+            if (conn.m_needs_reroute_flag || conn.m_detour) {
+                retryConns.add(conn);
             }
         }
-        if (failedConns.isEmpty()) {
+        if (retryConns.isEmpty()) {
             return;
         }
         final int buffer = RoutingParameter.shapeBufferDistance.ordinal();
@@ -1305,9 +1308,16 @@ public class Router {
             m_static_orthogonal_graph_invalidated = true;
             regenerateStaticBuiltGraph();
 
-            for (ConnRef conn : failedConns) {
+            for (ConnRef conn : retryConns) {
+                final boolean failed = conn.m_needs_reroute_flag;
+                final List<Point> previous = new ArrayList<>(conn.route().ps);
                 conn.m_needs_reroute_flag = true;
                 conn.generatePath();
+                if (!failed && (conn.m_needs_reroute_flag
+                        || routeLength(conn.route().ps) >= routeLength(previous))) {
+                    // not better than the detour found with buffer: keep that one
+                    conn.restoreRoute(previous);
+                }
             }
         } finally {
             // Restore the buffer and rebuild the graph, so all subsequent steps (crossing detection, nudging) use it.
@@ -1315,6 +1325,14 @@ public class Router {
             m_static_orthogonal_graph_invalidated = true;
             regenerateStaticBuiltGraph();
         }
+    }
+
+    private static double routeLength(List<Point> pts) {
+        double length = 0;
+        for (int i = 1; i < pts.size(); i++) {
+            length += Math.abs(pts.get(i).x - pts.get(i - 1).x) + Math.abs(pts.get(i).y - pts.get(i - 1).y);
+        }
+        return length;
     }
 
     // -----------------------------------------------------------------------
