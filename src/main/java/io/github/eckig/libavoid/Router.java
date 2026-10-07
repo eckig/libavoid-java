@@ -45,8 +45,10 @@ import java.util.Set;
  * <h2>Differences from the C++ original</h2>
  * <ul>
  * <li><b>Not ported:</b> hyperedges (HyperedgeRerouter, hyperedge improvement options), clusters (ClusterRef,
- * {@link RoutingParameter#clusterCrossingPenalty} has no effect), transaction progress reporting and cancelling
- * (C++ performContinuationCheck/abort), and the debug handler.</li>
+ * clusterCrossingPenalty), transaction progress reporting and cancelling (C++ performContinuationCheck/abort), and
+ * the debug handler.</li>
+ * <li>Routing parameters and options are only set via the {@link RoutingParameter} and {@link RoutingOption}
+ * constants, not by their C++ enum values.</li>
  * <li><b>Java extensions:</b> failed connectors and connectors with a large detour are routed again without
  * shape buffer, connectors without any path get an orthogonal fallback route, and destinations that only allow
  * {@link ConnDirFlag#ConnDirLeft} are approached from the left (see ConnRef and rerouteAndCallbackConnectors).</li>
@@ -109,13 +111,6 @@ public class Router {
          * This penalty is still experimental! It is not recommended for normal use.
          */
         crossingPenalty,
-        /**
-         * This penalty is applied whenever a connector path crosses a cluster boundary.
-         * <p>
-         * <b>Not ported:</b> clusters are not supported by this Java port, so this penalty is accepted but has no
-         * effect.
-         */
-        clusterCrossingPenalty,
         /**
          * This penalty is applied whenever a connector path shares some segments with an immovable portion of an
          * existing connector route (such as the first or last segment of a connector).
@@ -554,7 +549,6 @@ public class Router {
         m_routing_parameters = new double[RoutingParameter.values().length];
         Arrays.fill(m_routing_parameters, 0.0);
         m_routing_parameters[RoutingParameter.segmentPenalty.ordinal()] = 10;
-        m_routing_parameters[RoutingParameter.clusterCrossingPenalty.ordinal()] = 4000;
         m_routing_parameters[RoutingParameter.idealNudgingDistance.ordinal()] = 4.0;
 
         m_routing_options = new boolean[RoutingOption.values().length];
@@ -1069,50 +1063,6 @@ public class Router {
     // -----------------------------------------------------------------------
 
     /**
-     * Sets values for routing parameters using integer parameter ordinal.
-     * This overload supports tests that pass C++ enum ordinals directly.
-     */
-    public void setRoutingParameter(int parameterOrdinal, double value) {
-        RoutingParameter[] params = RoutingParameter.values();
-        for (RoutingParameter p : params) {
-            if (p.ordinal() == parameterOrdinal) {
-                setRoutingParameter(p, value);
-                return;
-            }
-        }
-    }
-
-    /**
-     * C++ RoutingOption values (router.h) by their ordinal; {@code null} for the hyperedge options, which are not
-     * ported. The Java enum has a different order, so its ordinals must not be used here.
-     */
-    private static final RoutingOption[] CPP_ROUTING_OPTIONS = {
-            RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes,   // 0
-            null,                                                     // 1 improveHyperedgeRoutesMovingJunctions
-            RoutingOption.penaliseOrthogonalSharedPathsAtConnEnds,    // 2
-            RoutingOption.nudgeOrthogonalTouchingColinearSegments,    // 3
-            RoutingOption.performUnifyingNudgingPreprocessingStep,    // 4
-            null,                                                     // 5 improveHyperedgeRoutesMovingAddingAndDeletingJunctions
-            RoutingOption.nudgeSharedPathsWithCommonEndPoint,         // 6
-    };
-
-    /**
-     * Sets a routing option by its C++ enum ordinal (router.h), e.g. for tests ported from C++. The hyperedge options
-     * (1 and 5) are not ported and ignored.
-     *
-     * @throws IllegalArgumentException if the ordinal is not a C++ routing option
-     */
-    public void setRoutingOption(int optionOrdinal, boolean value) {
-        if (optionOrdinal < 0 || optionOrdinal >= CPP_ROUTING_OPTIONS.length) {
-            throw new IllegalArgumentException("Unknown C++ routing option: " + optionOrdinal);
-        }
-        final RoutingOption option = CPP_ROUTING_OPTIONS[optionOrdinal];
-        if (option != null) {
-            setRoutingOption(option, value);
-        }
-    }
-
-    /**
      * Convenience method to set the orthogonal nudging distance.
      * Corresponds to a common pattern used in test code.
      */
@@ -1138,9 +1088,6 @@ public class Router {
                     break;
                 case crossingPenalty:
                     m_routing_parameters[parameter.ordinal()] = 200;
-                    break;
-                case clusterCrossingPenalty:
-                    m_routing_parameters[parameter.ordinal()] = 4000;
                     break;
                 case idealNudgingDistance:
                     m_routing_parameters[parameter.ordinal()] = 4.0;
@@ -1193,14 +1140,6 @@ public class Router {
      */
     public void setRoutingPenalty(RoutingParameter penType, double penVal) {
         setRoutingParameter(penType, penVal);
-    }
-
-    /**
-     * Sets or removes penalty values using integer parameter ordinal.
-     * This overload supports tests that pass C++ enum ordinals directly.
-     */
-    public void setRoutingPenalty(int penTypeOrdinal, double penVal) {
-        setRoutingParameter(penTypeOrdinal, penVal);
     }
 
     /**

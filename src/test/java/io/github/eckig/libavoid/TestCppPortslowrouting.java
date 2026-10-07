@@ -9,13 +9,12 @@ public class TestCppPortslowrouting
     {
     Router router = new Router(
             Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-    router.setRoutingPenalty(0, 50);
-    router.setRoutingPenalty(1, 0);
-    router.setRoutingPenalty(2, 0);
-    router.setRoutingPenalty(3, 0);
-    router.setRoutingPenalty(4, 110);
-    router.setRoutingPenalty(5, 100);
-    router.setRoutingOption(0, false);
+    router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 110);
+    router.setRoutingPenalty(Router.RoutingParameter.portDirectionPenalty, 100);
+    router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, false);
     router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
 JunctionRef junctionRef1634752 = new JunctionRef(router, new Point(24800, 27000), 1634752);
     Polygon poly2807970 = new Polygon(4);

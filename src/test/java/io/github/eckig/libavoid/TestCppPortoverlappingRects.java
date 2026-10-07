@@ -9,11 +9,10 @@ public class TestCppPortoverlappingRects
     {
     Router router = new Router(
             Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-    router.setRoutingPenalty(0, 50);
-    router.setRoutingPenalty(1, 0);
-    router.setRoutingPenalty(2, 0);
-    router.setRoutingPenalty(3, 4000);
-    router.setRoutingPenalty(4, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
     router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, true);
     Polygon poly57 = new Polygon(4);
     poly57.setPoint(0, new Point(-66.016, 38.6079));

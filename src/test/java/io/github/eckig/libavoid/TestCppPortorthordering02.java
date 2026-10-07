@@ -11,11 +11,10 @@ public class TestCppPortorthordering02
     {
     Router router = new Router(
             Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-    router.setRoutingPenalty(0, 50);
-    router.setRoutingPenalty(1, 0);
-    router.setRoutingPenalty(2, 50);
-    router.setRoutingPenalty(3, 4000);
-    router.setRoutingPenalty(4, 110);
+    router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 110);
     router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
     Polygon poly143407352 = new Polygon(4);
     poly143407352.setPoint(0, new Point(6035, 4390));

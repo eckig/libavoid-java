@@ -14,18 +14,16 @@ public class TestCppPortperformance01
     public void testperformance01()
     {
     router = new Router(Router.RouterFlag.OrthogonalRouting);
-    router.setRoutingParameter(0, 50);
-    router.setRoutingParameter(1, 0);
-    router.setRoutingParameter(2, 0);
-    router.setRoutingParameter(3, 4000);
-    router.setRoutingParameter(4, 0);
-    router.setRoutingParameter(5, 100);
-    router.setRoutingParameter(6, 0);
-    router.setRoutingParameter(7, 4);
-    router.setRoutingOption(0, false);
-    router.setRoutingOption(1, true);
-    router.setRoutingOption(2, false);
-    router.setRoutingOption(3, false);
+    router.setRoutingParameter(Router.RoutingParameter.segmentPenalty, 50);
+    router.setRoutingParameter(Router.RoutingParameter.anglePenalty, 0);
+    router.setRoutingParameter(Router.RoutingParameter.crossingPenalty, 0);
+    router.setRoutingParameter(Router.RoutingParameter.fixedSharedPathPenalty, 0);
+    router.setRoutingParameter(Router.RoutingParameter.portDirectionPenalty, 100);
+    router.setRoutingParameter(Router.RoutingParameter.shapeBufferDistance, 0);
+    router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 4);
+    router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, false);
+    router.setRoutingOption(Router.RoutingOption.penaliseOrthogonalSharedPathsAtConnEnds, false);
+    router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalTouchingColinearSegments, false);
     polygon = new Polygon();
     connRef = null;
     srcPt = new ConnEnd();

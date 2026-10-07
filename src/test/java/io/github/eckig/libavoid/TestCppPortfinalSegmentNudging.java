@@ -11,15 +11,13 @@ public class TestCppPortfinalSegmentNudging
     {
     Router router = new Router(
             Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-    router.setRoutingPenalty(0, 50);
-    router.setRoutingPenalty(1, 0);
-    router.setRoutingPenalty(2, 0);
-    router.setRoutingPenalty(3, 4000);
-    router.setRoutingPenalty(4, 0);
-    router.setRoutingPenalty(5, 100);
-    router.setRoutingOption(0, true);
-    router.setRoutingOption(1, true);
-    router.setRoutingOption(2, false);
+    router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.portDirectionPenalty, 100);
+    router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, true);
+    router.setRoutingOption(Router.RoutingOption.penaliseOrthogonalSharedPathsAtConnEnds, false);
     Polygon poly12 = new Polygon(4);
     poly12.setPoint(0, new Point(2072.79, 1841.95));
     poly12.setPoint(1, new Point(2072.79, 1903.95));
@@ -79,15 +77,13 @@ public class TestCppPortfinalSegmentNudging
     {
         Router router = new Router(
                 Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 0);
-        router.setRoutingPenalty(5, 100);
-        router.setRoutingOption(0, true);
-        router.setRoutingOption(1, true);
-        router.setRoutingOption(2, false);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.portDirectionPenalty, 100);
+        router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, true);
+        router.setRoutingOption(Router.RoutingOption.penaliseOrthogonalSharedPathsAtConnEnds, false);
         Polygon poly3 = new Polygon(4);
         poly3.setPoint(0, new Point(328, 368));
         poly3.setPoint(1, new Point(328, 400));
@@ -159,16 +155,14 @@ public class TestCppPortfinalSegmentNudging
     {
         Router router = new Router(
                 Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-        router.setRoutingParameter(0, 50);
-        router.setRoutingParameter(1, 0);
-        router.setRoutingParameter(2, 0);
-        router.setRoutingParameter(3, 4000);
-        router.setRoutingParameter(4, 0);
-        router.setRoutingParameter(5, 100);
-        router.setRoutingOption(0, true);
-        router.setRoutingOption(1, true);
-        router.setRoutingOption(2, false);
-        router.setRoutingOption(3, false);
+        router.setRoutingParameter(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingParameter(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingParameter(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingParameter(Router.RoutingParameter.fixedSharedPathPenalty, 0);
+        router.setRoutingParameter(Router.RoutingParameter.portDirectionPenalty, 100);
+        router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, true);
+        router.setRoutingOption(Router.RoutingOption.penaliseOrthogonalSharedPathsAtConnEnds, false);
+        router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalTouchingColinearSegments, false);
         Polygon poly13 = new Polygon(4);
         poly13.setPoint(0, new Point(851.5, 1998.92));
         poly13.setPoint(1, new Point(851.5, 2018.92));

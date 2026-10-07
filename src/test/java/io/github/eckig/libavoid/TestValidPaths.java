@@ -10,14 +10,12 @@ public class TestValidPaths
     public void testValidPaths01()
     {
         Router router = new Router(Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 200);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 110);
-        router.setRoutingPenalty(5, 100);
-        router.setRoutingOption(0, false);
-        router.setRoutingOption(1, true);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 200);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 110);
+        router.setRoutingPenalty(Router.RoutingParameter.portDirectionPenalty, 100);
+        router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, false);
         router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
 
         Polygon poly3075375=new Polygon(4);
@@ -465,14 +463,12 @@ public class TestValidPaths
     public void testValidPaths02()
     {
         Router router = new Router(Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 200);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 110);
-        router.setRoutingPenalty(5, 100);
-        router.setRoutingOption(0, false);
-        router.setRoutingOption(1, true);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 200);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 110);
+        router.setRoutingPenalty(Router.RoutingParameter.portDirectionPenalty, 100);
+        router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, false);
         router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
 
         Polygon poly186982048=new Polygon(4);

@@ -30,25 +30,6 @@ class TestPortFidelityFixes {
         }
     }
 
-    /** Integer options use the C++ ordinals (router.h), which differ from the Java enum order. */
-    @Test
-    void integerRoutingOptionsUseCppOrdinals() {
-        final Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingOption(4, true);
-        assertTrue(router.routingOption(Router.RoutingOption.performUnifyingNudgingPreprocessingStep));
-        router.setRoutingOption(6, false);
-        assertFalse(router.routingOption(Router.RoutingOption.nudgeSharedPathsWithCommonEndPoint));
-        router.setRoutingOption(2, true);
-        assertTrue(router.routingOption(Router.RoutingOption.penaliseOrthogonalSharedPathsAtConnEnds));
-
-        // hyperedge options are not ported: ignored, and nothing else changes
-        final boolean before = router.routingOption(Router.RoutingOption.nudgeFinalSegmentsFromSamePoint);
-        router.setRoutingOption(5, !before);
-        assertEquals(before, router.routingOption(Router.RoutingOption.nudgeFinalSegmentsFromSamePoint));
-
-        assertThrows(IllegalArgumentException.class, () -> router.setRoutingOption(7, true));
-    }
-
     /** A relative move only takes effect when the transaction is processed (C++ copies the polygon). */
     @Test
     void relativeMoveDoesNotChangeShapeBeforeTransaction() {

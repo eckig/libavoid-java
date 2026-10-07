@@ -13,7 +13,6 @@ public class TestForwardFlowingConnectors
         router.setRoutingParameter(Router.RoutingParameter.segmentPenalty, 10);
         router.setRoutingParameter(Router.RoutingParameter.anglePenalty, 0);
         router.setRoutingParameter(Router.RoutingParameter.crossingPenalty, 1000);
-        router.setRoutingParameter(Router.RoutingParameter.clusterCrossingPenalty, 4000);
         router.setRoutingParameter(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         router.setRoutingParameter(Router.RoutingParameter.portDirectionPenalty, 100);
         router.setRoutingParameter(Router.RoutingParameter.shapeBufferDistance, 1);

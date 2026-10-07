@@ -9,11 +9,10 @@ public class TestCppPortnudgeold
     {
     Router router = new Router(
             Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-    router.setRoutingPenalty(0, 50);
-    router.setRoutingPenalty(1, 0);
-    router.setRoutingPenalty(2, 0);
-    router.setRoutingPenalty(3, 4000);
-    router.setRoutingPenalty(4, 110);
+    router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 110);
     router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
     Polygon poly426345871 = new Polygon(4);
     poly426345871.setPoint(0, new Point(7200, 5240));

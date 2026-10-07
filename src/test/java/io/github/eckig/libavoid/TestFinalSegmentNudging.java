@@ -13,7 +13,6 @@ public class TestFinalSegmentNudging
         router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
         router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
         router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
-        router.setRoutingPenalty(Router.RoutingParameter.clusterCrossingPenalty, 4000);
         router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         router.setRoutingPenalty(Router.RoutingParameter.portDirectionPenalty, 100);
         router.setRoutingOption(Router.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, true);

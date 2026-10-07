@@ -14,7 +14,6 @@ public class TestNudgeIntoBug
         router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
         router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
         router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 200);
-        router.setRoutingPenalty(Router.RoutingParameter.clusterCrossingPenalty, 4000);
         router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 110);
         router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
         Rectangle rect548374163 = new Rectangle(new Point(51900, 50400), new Point(52300, 50900));

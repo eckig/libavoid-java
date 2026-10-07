@@ -37,7 +37,6 @@ public class TestInlineOverlap
         router.setRoutingParameter(Router.RoutingParameter.segmentPenalty, 10);
         router.setRoutingParameter(Router.RoutingParameter.anglePenalty, 0);
         router.setRoutingParameter(Router.RoutingParameter.crossingPenalty, 100);
-        router.setRoutingParameter(Router.RoutingParameter.clusterCrossingPenalty, 4000);
         router.setRoutingParameter(Router.RoutingParameter.fixedSharedPathPenalty, 1000);
         router.setRoutingParameter(Router.RoutingParameter.portDirectionPenalty, 100);
         router.setRoutingParameter(Router.RoutingParameter.shapeBufferDistance, 20);

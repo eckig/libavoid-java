@@ -8,11 +8,10 @@ public class TestCppPorttjunct
     public void testtjunct()
     {
     Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-    router.setRoutingPenalty(0, 50);
-    router.setRoutingPenalty(1, 0);
-    router.setRoutingPenalty(2, 200);
-    router.setRoutingPenalty(3, 4000);
-    router.setRoutingPenalty(4, 105);
+    router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 200);
+    router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 105);
     router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
     JunctionRef jRef1 = new JunctionRef(router, new Point(50700, 51075));
     Rectangle rect92712048 = new Rectangle(new Point(51246, 50475), new Point(51304, 50585));

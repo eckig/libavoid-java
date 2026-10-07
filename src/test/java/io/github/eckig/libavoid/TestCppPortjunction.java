@@ -8,11 +8,10 @@ public class TestCppPortjunction
     public void testjunction01()
     {
     Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-    router.setRoutingPenalty(0, 50);
-    router.setRoutingPenalty(1, 0);
-    router.setRoutingPenalty(2, 0);
-    router.setRoutingPenalty(3, 4000);
-    router.setRoutingPenalty(4, 105);
+    router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 105);
     router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
     Rectangle rect478845150 = new Rectangle(new Point(50695, 51070), new Point(50705, 51080));
     ShapeRef shapeRef478845150 = new ShapeRef(router, rect478845150, 478845150);
@@ -57,11 +56,10 @@ public class TestCppPortjunction
     public void testjunction02()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 105);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 105);
         router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
         JunctionRef junction478845150 = new JunctionRef(router, new Point(50700, 51075));
         Rectangle rect92712048 = new Rectangle(new Point(51246, 50475), new Point(51304, 50585));
@@ -103,11 +101,10 @@ public class TestCppPortjunction
     public void testjunction03()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 105);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 105);
         router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
         Rectangle rect478845150 = new Rectangle(new Point(50695, 51070), new Point(50705, 51080));
         JunctionRef junctionRef478845150 = new JunctionRef(router,
@@ -151,7 +148,7 @@ public class TestCppPortjunction
     public void testjunction04()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
         Rectangle shapeRect1 = new Rectangle(new Point(0, 0), new Point(30, 20));
         ShapeRef shapeRef1 = new ShapeRef(router, shapeRect1);
         Rectangle shapeRect2 = new Rectangle(new Point(70, 7), new Point(100, 27));

@@ -13,7 +13,6 @@ public class TestCornerOverlap
         router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
         router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
         router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
-        router.setRoutingPenalty(Router.RoutingParameter.clusterCrossingPenalty, 4000);
         router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 110);
         router.setOrthogonalNudgeDistance(12);
 

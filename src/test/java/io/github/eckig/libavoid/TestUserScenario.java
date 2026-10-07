@@ -23,7 +23,6 @@ public class TestUserScenario {
         router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 1000);
         router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
         router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
-        router.setRoutingPenalty(Router.RoutingParameter.clusterCrossingPenalty, 0);
         router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         router.setRoutingPenalty(Router.RoutingParameter.portDirectionPenalty, 0);
         router.setRoutingParameter(Router.RoutingParameter.shapeBufferDistance, 18); // 1.5 * 12

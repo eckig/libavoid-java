@@ -8,11 +8,10 @@ public class TestCppPortlineSegWrapperCrash
     public void testlineSegWrapperCrash1()
     {
     Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-    router.setRoutingPenalty(0, 50);
-    router.setRoutingPenalty(1, 0);
-    router.setRoutingPenalty(2, 0);
-    router.setRoutingPenalty(3, 4000);
-    router.setRoutingPenalty(4, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+    router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
     Polygon poly29 = new Polygon(4);
     poly29.setPoint(0, new Point(1038.92, 415.557));
     poly29.setPoint(1, new Point(1038.92, 455.557));
@@ -1622,11 +1621,10 @@ public class TestCppPortlineSegWrapperCrash
     public void testlineSegWrapperCrash2()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         Polygon poly95 = new Polygon(4);
         poly95.setPoint(0, new Point(867.924, 151.557));
         poly95.setPoint(1, new Point(867.924, 171.557));
@@ -3236,11 +3234,10 @@ public class TestCppPortlineSegWrapperCrash
     public void testlineSegWrapperCrash3()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         Polygon poly46 = new Polygon(4);
         poly46.setPoint(0, new Point(577.924, 415.557));
         poly46.setPoint(1, new Point(577.924, 455.557));
@@ -4850,11 +4847,10 @@ public class TestCppPortlineSegWrapperCrash
     public void testlineSegWrapperCrash4()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         Polygon poly45 = new Polygon(4);
         poly45.setPoint(0, new Point(577.924, 34.8422));
         poly45.setPoint(1, new Point(577.924, 74.8422));
@@ -6464,11 +6460,10 @@ public class TestCppPortlineSegWrapperCrash
     public void testlineSegWrapperCrash5()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         Polygon poly134 = new Polygon(4);
         poly134.setPoint(0, new Point(885.924, 365.557));
         poly134.setPoint(1, new Point(885.924, 405.557));
@@ -8078,11 +8073,10 @@ public class TestCppPortlineSegWrapperCrash
     public void testlineSegWrapperCrash6()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         Polygon poly121 = new Polygon(4);
         poly121.setPoint(0, new Point(645.924, 693.557));
         poly121.setPoint(1, new Point(645.924, 733.557));
@@ -9692,11 +9686,10 @@ public class TestCppPortlineSegWrapperCrash
     public void testlineSegWrapperCrash7()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         Polygon poly51 = new Polygon(4);
         poly51.setPoint(0, new Point(1038.92, 323.557));
         poly51.setPoint(1, new Point(1038.92, 363.557));
@@ -11306,11 +11299,10 @@ public class TestCppPortlineSegWrapperCrash
     public void testlineSegWrapperCrash8()
     {
         Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 0);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 0);
         Polygon poly79 = new Polygon(4);
         poly79.setPoint(0, new Point(387.924, 753.557));
         poly79.setPoint(1, new Point(387.924, 773.557));

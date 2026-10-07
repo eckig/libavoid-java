@@ -8,7 +8,7 @@ public class TestCppPortconnectionpin
     public void testconnectionpin02()
     {
     Router router = new Router(Router.RouterFlag.OrthogonalRouting);
-    router.setRoutingPenalty(0, 50);
+    router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
     Rectangle shapeRect1 = new Rectangle(new Point(0, 0), new Point(10, 10));
     ShapeRef shapeRef1 = new ShapeRef(router, shapeRect1);
     Rectangle shapeRect2 = new Rectangle(new Point(0, 90), new Point(20, 100));
@@ -53,11 +53,10 @@ public class TestCppPortconnectionpin
     {
         Router router = new Router(
                 Router.RouterFlag.PolyLineRouting.flag | Router.RouterFlag.OrthogonalRouting.flag);
-        router.setRoutingPenalty(0, 50);
-        router.setRoutingPenalty(1, 0);
-        router.setRoutingPenalty(2, 200);
-        router.setRoutingPenalty(3, 4000);
-        router.setRoutingPenalty(4, 110);
+        router.setRoutingPenalty(Router.RoutingParameter.segmentPenalty, 50);
+        router.setRoutingPenalty(Router.RoutingParameter.anglePenalty, 0);
+        router.setRoutingPenalty(Router.RoutingParameter.crossingPenalty, 200);
+        router.setRoutingPenalty(Router.RoutingParameter.fixedSharedPathPenalty, 110);
         router.setRoutingParameter(Router.RoutingParameter.idealNudgingDistance, 25);
         Polygon poly219926511 = new Polygon(4);
         poly219926511.setPoint(0, new Point(50760, 51240));
