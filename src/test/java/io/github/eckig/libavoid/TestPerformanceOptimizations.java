@@ -85,4 +85,44 @@ class TestPerformanceOptimizations {
                     new Point(x, y).hashCode());
         }
     }
+
+    /**
+     * Incremental unifying ends at the same optimum as solving from scratch: same routes, positions equal up to the
+     * solver's cost tolerance (measured: almost all below 0.01 px, rarely up to 1.5 px).
+     */
+    @Test
+    void incrementalUnifyingKeepsRoutes() {
+        for (long seed = 1; seed <= 3; seed++) {
+            final long stepsBefore = ImproveOrthogonalRoutes.incrementalUnifyingSteps;
+            final List<String> incremental = routes(seed);
+            assertTrue(ImproveOrthogonalRoutes.incrementalUnifyingSteps > stepsBefore, "incremental path not used");
+            ImproveOrthogonalRoutes.incrementalUnifying = false;
+            final List<String> fromScratch;
+            try {
+                fromScratch = routes(seed);
+            } finally {
+                ImproveOrthogonalRoutes.incrementalUnifying = true;
+            }
+            assertEquals(fromScratch.size(), incremental.size());
+            for (int i = 0; i < fromScratch.size(); i++) {
+                final List<double[]> a = points(fromScratch.get(i));
+                final List<double[]> b = points(incremental.get(i));
+                assertEquals(a.size(), b.size(), "seed " + seed + " route " + i + " changed shape");
+                for (int k = 0; k < a.size(); k++) {
+                    assertEquals(a.get(k)[0], b.get(k)[0], 2.0, "seed " + seed + " route " + i);
+                    assertEquals(a.get(k)[1], b.get(k)[1], 2.0, "seed " + seed + " route " + i);
+                }
+            }
+        }
+    }
+
+    private static List<double[]> points(final String route) {
+        final List<double[]> result = new ArrayList<>();
+        final java.util.regex.Matcher m = java.util.regex.Pattern.compile("Point\\(([-\\d.E]+), ([-\\d.E]+)\\)")
+                .matcher(route);
+        while (m.find()) {
+            result.add(new double[] {Double.parseDouble(m.group(1)), Double.parseDouble(m.group(2))});
+        }
+        return result;
+    }
 }

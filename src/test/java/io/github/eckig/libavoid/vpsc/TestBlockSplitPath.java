@@ -251,4 +251,155 @@ class TestBlockSplitPath {
         solver.solve();
         assertEquals(b.finalPosition, c.finalPosition, 1e-6);
     }
+
+    private static double cost(final List<Variable> vs) {
+        double cost = 0;
+        for (Variable v : vs) {
+            final double d = v.finalPosition - v.desiredPosition;
+            cost += v.weight.weight * d * d;
+        }
+        return cost;
+    }
+
+    private static List<Constraint> sparseConstraints(final Random random, final List<Variable> vs) {
+        final List<Constraint> cs = new ArrayList<>();
+        for (int i = 0; i < vs.size(); i++) {
+            final int a = random.nextInt(vs.size());
+            final int b = random.nextInt(vs.size());
+            if (a < b) {
+                cs.add(new Constraint(vs.get(a), vs.get(b), random.nextDouble() * 4));
+            }
+        }
+        return cs;
+    }
+
+    /**
+     * addConstraint() continues from the current solution (as unifying nudging does): the result satisfies all
+     * constraints and has the same cost as a new solver over all constraints, within the solver's tolerance. The
+     * positions themselves may differ where the cost is almost flat (low weights).
+     */
+    @Test
+    void addConstraintContinuesToSameOptimum() {
+        int compared = 0;
+        for (int seed = 0; seed < 1000; seed++) {
+            final Random random = new Random(seed);
+            final int n = 5 + random.nextInt(25);
+            final int a = random.nextInt(n - 1);
+            final int b = a + 1 + random.nextInt(n - 1 - a);
+            final long constraintSeed = random.nextLong();
+
+            // from scratch, only feasible problems (as unifying only keeps satisfiable equalities)
+            final List<Variable> vs = variables(new Random(seed * 31L), n);
+            final List<Constraint> cs = sparseConstraints(new Random(constraintSeed), vs);
+            cs.add(new Constraint(vs.get(a), vs.get(b), 0, true));
+            try {
+                new IncSolver(vs, cs).solve();
+            } catch (RuntimeException e) {
+                continue;
+            }
+            if (!satisfiesAll(cs)) {
+                continue;
+            }
+            final double freshCost = cost(vs);
+
+            // incrementally: solve without the equality, then add it
+            final List<Variable> vs2 = variables(new Random(seed * 31L), n);
+            final List<Constraint> cs2 = sparseConstraints(new Random(constraintSeed), vs2);
+            final IncSolver incremental = new IncSolver(vs2, cs2);
+            incremental.solve();
+            cs2.add(new Constraint(vs2.get(a), vs2.get(b), 0, true));
+            incremental.addConstraint(cs2.getLast());
+            incremental.solve();
+
+            assertTrue(satisfiesAll(cs2), "seed " + seed + ": constraint violated");
+            assertEquals(freshCost, cost(vs2), 1e-3, "seed " + seed + ": cost differs");
+            compared++;
+        }
+        assertTrue(compared > 500, "too few comparisons: " + compared);
+    }
+
+    /** Result of running a unifying-like sequence of added equalities. */
+    private record ChainResult(List<Boolean> accepted, double cost) {
+    }
+
+    /**
+     * Runs a unifying-like sequence: equalities are added one after another, an equality that cannot be satisfied is
+     * removed again. {@code incremental} continues the solver after an accepted equality (as ImproveOrthogonalRoutes
+     * does now), otherwise the solver is reset each time (previous behaviour). The result is the state after the last
+     * accepted equality, as used by routing (the state of a rejected, infeasible pass is discarded).
+     */
+    private static ChainResult runChain(final long seed, final boolean incremental) {
+        final Random random = new Random(seed);
+        final int n = 6 + random.nextInt(20);
+        final List<Variable> vs = variables(new Random(seed * 17L), n);
+        final List<Constraint> cs = sparseConstraints(random, vs);
+        final IncSolver solver = new IncSolver(vs, cs);
+        solver.solve();
+        final List<Boolean> accepted = new ArrayList<>();
+        boolean previousRejected = false;
+        for (int k = 0; k < 6; k++) {
+            final int a = random.nextInt(n - 1);
+            final int b = a + 1 + random.nextInt(n - 1 - a);
+            cs.add(new Constraint(vs.get(a), vs.get(b), 0, true));
+            final boolean incrementalPass = incremental && !previousRejected;
+            boolean ok = attempt(solver, cs, incrementalPass);
+            if (incrementalPass && (!ok || solver.markedUnsatisfiableInequality())) {
+                // as ImproveOrthogonalRoutes: only clean incremental passes are kept, others are repeated from scratch
+                solver.undoUnsatisfiableMarks();
+                ok = attempt(solver, cs, false);
+            }
+            accepted.add(ok);
+            previousRejected = !ok;
+            if (!ok) {
+                cs.removeLast();
+            }
+        }
+        if (previousRejected) {
+            // as in routing: after a rejection the next pass resets the solver without the rejected equality
+            solver.reset();
+            solver.solve();
+        }
+        return new ChainResult(accepted, cost(vs));
+    }
+
+    private static boolean attempt(final IncSolver solver, final List<Constraint> cs, final boolean incremental) {
+        try {
+            if (incremental) {
+                solver.addConstraint(cs.getLast());
+            } else {
+                solver.reset();
+            }
+            solver.solve();
+            return satisfiesAll(cs);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Continuing incrementally makes the same accept/reject decisions and reaches the same cost as resetting the
+     * solver for every added equality, including sequences with rejections.
+     */
+    @Test
+    void chainOfAddedConstraintsMatchesResetEachTime() {
+        int rejections = 0;
+        for (long seed = 0; seed < 300; seed++) {
+            final ChainResult incremental = runChain(seed, true);
+            final ChainResult reset = runChain(seed, false);
+            assertEquals(reset.accepted(), incremental.accepted(), "seed " + seed + ": decisions differ");
+            assertEquals(reset.cost(), incremental.cost(), 1e-3, "seed " + seed + ": cost differs");
+            rejections += (int) reset.accepted().stream().filter(x -> !x).count();
+        }
+        assertTrue(rejections > 50, "too few rejections exercised: " + rejections);
+    }
+
+    private static boolean satisfiesAll(final List<Constraint> cs) {
+        for (Constraint c : cs) {
+            final double slack = c.right.finalPosition - c.gap - c.left.finalPosition;
+            if (c.equality ? Math.abs(slack) > 1e-4 : slack < -1e-4) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

@@ -132,6 +132,54 @@ public class IncSolver {
         }
     }
 
+    /** Constraints marked unsatisfiable during the last {@link #solve()}. */
+    private final List<Constraint> markedUnsatisfiable = new ArrayList<>();
+
+    /**
+     * @return {@code true} if the last {@link #solve()} marked inequality constraints as unsatisfiable (infeasible
+     *         problem). Equality constraints are also marked when they are redundant (their variables are already
+     *         equal through other equalities), which carries no information and is not reported here.
+     */
+    public boolean markedUnsatisfiableInequality() {
+        for (Constraint c : markedUnsatisfiable) {
+            if (!c.equality) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Clears the unsatisfiable marks set by the last {@link #solve()}, e.g. to repeat that pass from scratch.
+     */
+    public void undoUnsatisfiableMarks() {
+        for (Constraint c : markedUnsatisfiable) {
+            c.unsatisfiable = false;
+        }
+        markedUnsatisfiable.clear();
+    }
+
+    /**
+     * Adds a constraint to an already solved problem, so that the next {@link #solve()} continues from the current
+     * solution instead of starting from scratch (C++ IncSolver::addConstraint). Must only be called after
+     * {@link #solve()}; the constraint must already have been appended to the constraint list passed to the
+     * constructor, which must not have changed otherwise (use {@link #reset()} for other changes). The result has the
+     * same cost as solving from scratch within the stopping tolerance of {@link #solve()} (not exactly the same
+     * positions where the cost is flat).
+     *
+     * @param c
+     *         the new constraint (last element of the constraint list)
+     */
+    public void addConstraint(Constraint c) {
+        assert cs.getLast() == c;
+        m = cs.size();
+        c.active = false;
+        c.left.out.add(c);
+        c.right.in.add(c);
+        c.needsScaling = needsScaling;
+        addToInactive(c);
+    }
+
     /**
      * Stores the relative positions of the variables in their finalPosition field.
      */
@@ -170,6 +218,7 @@ public class IncSolver {
                     addToInactive(splitConstraint);
                 } else {
                     v.unsatisfiable = true;
+                    markedUnsatisfiable.add(v);
                     continue;
                 }
                 Block newLb = result[0];
@@ -256,6 +305,7 @@ public class IncSolver {
      * C++ IncSolver::solve() from vpsc.cpp line 243
      */
     public void solve() {
+        markedUnsatisfiable.clear();
         satisfy();
         double lastCost = Double.MAX_VALUE;
         double cost = bs.cost();

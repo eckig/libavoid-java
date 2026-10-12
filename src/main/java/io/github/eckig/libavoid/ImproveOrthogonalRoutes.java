@@ -208,6 +208,50 @@ public class ImproveOrthogonalRoutes {
     // buildOrthogonalNudgingSegments - static helper
     // =========================================================================
 
+    /**
+     * Determines if the problem was satisfied (fixed segments and channel edges at their desired positions) and
+     * records ranges of unsatisfied variables based on the channel edges.
+     */
+    private static boolean checkSatisfied(List<Variable> vs, List<int[]> unsatisfiedRanges) {
+        boolean satisfied = true;
+        unsatisfiedRanges.clear();
+        for (int i = 0; i < vs.size(); ++i) {
+            if (vs.get(i).id != Variable.Id.freeSegmentID) {
+                if (Math.abs(vs.get(i).finalPosition -
+                        vs.get(i).desiredPosition) > 0.0001) {
+                    satisfied = false;
+
+                    if (vs.get(i).id == Variable.Id.channelLeftID) {
+                        if (unsatisfiedRanges.isEmpty() ||
+                                (unsatisfiedRanges.getLast()[0] !=
+                                        unsatisfiedRanges.getLast()[1])) {
+                            unsatisfiedRanges.add(new int[]{i, i + 1});
+                        }
+                    } else if (vs.get(i).id == Variable.Id.channelRightID) {
+                        if (unsatisfiedRanges.isEmpty()) {
+                            assert i > 0;
+                            unsatisfiedRanges.add(new int[]{i - 1, i});
+                        } else {
+                            unsatisfiedRanges.getLast()[1] = i;
+                        }
+                    } else if (vs.get(i).id == Variable.Id.fixedSegmentID) {
+                        if (unsatisfiedRanges.isEmpty()) {
+                            unsatisfiedRanges.add(new int[]{i, i});
+                        } else {
+                            unsatisfiedRanges.getLast()[1] = i;
+                        }
+                    }
+                }
+            }
+        }
+        return satisfied;
+    }
+
+    /** Continue the solver incrementally when unifying (only switched off by tests to compare the results). */
+    static boolean incrementalUnifying = true;
+    /** Number of incremental solver continuations while unifying (diagnostics for tests). */
+    static long incrementalUnifyingSteps;
+
     /** Skip pairs of routes with disjoint bounding boxes (only switched off by tests to compare the results). */
     static boolean skipDisjointPairs = true;
 
@@ -538,53 +582,43 @@ public class ImproveOrthogonalRoutes {
             }
 
             // Repeatedly try solving.
-            // The solver is constructed once and reset() is called on subsequent
-            // iterations to reinitialize state without allocating new objects.
-            // Only constraint gaps change between iterations, so the structural
-            // wiring (variables, constraint graph) stays identical — reset() is
-            // sufficient and avoids the per-iteration allocation overhead that
-            // was visible as <init> / add / gro in the profiler flamegraph.
+            // The solver is constructed once. Between iterations it is either reset() (nudging: gaps changed;
+            // unifying: a constraint was removed) or, when unifying added a constraint, continued incrementally via
+            // addConstraint().
             boolean justAddedConstraint = false;
+            // set if a unifying constraint was removed again: the solver state still contains it
+            boolean removedConstraint;
             boolean satisfied;
 
             // Track unsatisfied variable ranges for constraint gap rewriting.
             List<int[]> unsatisfiedRanges = new ArrayList<>(); // pairs of [first, second]
 
             IncSolver f = new IncSolver(vs, cs);
+            boolean continuedIncrementally = false;
             do {
-                f.solve();
-
-                // Determine if the problem was satisfied.
-                satisfied = true;
-                unsatisfiedRanges.clear();
-                for (int i = 0; i < vs.size(); ++i) {
-                    if (vs.get(i).id != Variable.Id.freeSegmentID) {
-                        if (Math.abs(vs.get(i).finalPosition -
-                                vs.get(i).desiredPosition) > 0.0001) {
-                            satisfied = false;
-
-                            if (vs.get(i).id == Variable.Id.channelLeftID) {
-                                if (unsatisfiedRanges.isEmpty() ||
-                                        (unsatisfiedRanges.getLast()[0] !=
-                                                unsatisfiedRanges.getLast()[1])) {
-                                    unsatisfiedRanges.add(new int[]{i, i + 1});
-                                }
-                            } else if (vs.get(i).id == Variable.Id.channelRightID) {
-                                if (unsatisfiedRanges.isEmpty()) {
-                                    assert i > 0;
-                                    unsatisfiedRanges.add(new int[]{i - 1, i});
-                                } else {
-                                    unsatisfiedRanges.getLast()[1] = i;
-                                }
-                            } else if (vs.get(i).id == Variable.Id.fixedSegmentID) {
-                                if (unsatisfiedRanges.isEmpty()) {
-                                    unsatisfiedRanges.add(new int[]{i, i});
-                                } else {
-                                    unsatisfiedRanges.getLast()[1] = i;
-                                }
-                            }
-                        }
+                final boolean incrementalPass = continuedIncrementally;
+                continuedIncrementally = false;
+                boolean clean = true;
+                try {
+                    f.solve();
+                } catch (RuntimeException e) {
+                    if (!incrementalPass) {
+                        throw e;
                     }
+                    clean = false;
+                }
+                removedConstraint = false;
+
+                satisfied = clean && checkSatisfied(vs, unsatisfiedRanges);
+                if (incrementalPass && (!satisfied || f.markedUnsatisfiableInequality())) {
+                    // Only clean incremental passes are kept. Otherwise (exception, rejection) this pass is repeated
+                    // from scratch as before. Unifying only uses gap-0 equalities and never splits, so marked
+                    // (redundant) equalities do not influence later passes; the inequality check is a guard in case
+                    // this ever changes.
+                    f.undoUnsatisfiableMarks();
+                    f.reset();
+                    f.solve();
+                    satisfied = checkSatisfied(vs, unsatisfiedRanges);
                 }
 
                 if (justUnifying) {
@@ -593,6 +627,7 @@ public class ImproveOrthogonalRoutes {
                         if (!satisfied) {
                             potentialConstraints.removeFirst();
                             cs.removeLast();
+                            removedConstraint = true;
                         } else {
                             PotentialSegmentConstraint pc = potentialConstraints.getFirst();
                             for (PotentialSegmentConstraint it : potentialConstraints) {
@@ -647,8 +682,19 @@ public class ImproveOrthogonalRoutes {
                 }
 
                 if (!satisfied && (sepDist > 0.0001)) {
-                    // Reset the solver for the next iteration, reusing all objects.
-                    f.reset();
+                    if (incrementalUnifying && justUnifying && justAddedConstraint && !removedConstraint) {
+                        // Unifying: the previous solution is kept and only the new equality constraint is added, the
+                        // next solve() continues from there instead of starting from scratch (as C++ does).
+                        // Measured: same cost within the solver's stopping tolerance; positions may differ
+                        // marginally where the cost is flat (low weights of free segments). Fixed segments have a
+                        // very high weight, so the satisfied check (fixed segments at their position) is unaffected.
+                        f.addConstraint(cs.getLast());
+                        continuedIncrementally = true;
+                        incrementalUnifyingSteps++;
+                    } else {
+                        // Reset the solver for the next iteration, reusing all objects.
+                        f.reset();
+                    }
                 }
             }
             while (!satisfied && (sepDist > 0.0001));
