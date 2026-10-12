@@ -51,6 +51,9 @@
         <maven.compiler.source>24</maven.compiler.source>
         <maven.compiler.target>24</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- routing benchmarks are excluded from the normal build, see profile "benchmark" -->
+        <surefire.groups></surefire.groups>
+        <surefire.excludedGroups>benchmark</surefire.excludedGroups>
     </properties>
     <dependencies>
         <dependency>
@@ -68,6 +71,15 @@
 
     <build>
         <plugins>
+            <plugin>
+                <!-- benchmarks only run with -Pbenchmark -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
+                    <groups>${surefire.groups}</groups>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.jreleaser</groupId>
                 <artifactId>jreleaser-maven-plugin</artifactId>
@@ -98,6 +110,14 @@
     </build>
 
     <profiles>
+        <profile>
+            <!-- mvn -Pbenchmark test : runs only the routing benchmarks (see TestRoutingBenchmark) -->
+            <id>benchmark</id>
+            <properties>
+                <surefire.groups>benchmark</surefire.groups>
+                <surefire.excludedGroups>none</surefire.excludedGroups>
+            </properties>
+        </profile>
         <profile>
             <id>publication</id>
             <properties>
